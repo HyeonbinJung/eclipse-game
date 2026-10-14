@@ -92,11 +92,11 @@ const BASE_NAMES: Record<Slot, string[]> = {
   weapon: [], armor: ['가죽 갑옷', '사슬 갑옷', '판금 갑옷'], gloves: ['장갑', '손보호대'], boots: ['장화', '각반'],
   ring1: ['반지', '인장 반지'], ring2: ['반지', '고리'], necklace: ['목걸이', '부적'], relic: [],
 };
-const WEAPON_NAMES: Record<string, string[]> = { blade: ['장검', '세검', '대검'], fist: ['건틀릿', '너클', '권갑'], mage: ['지팡이', '완드', '마도서'] };
+const WEAPON_NAMES: Record<string, string[]> = { blade: ['장검', '세검', '대검'], fist: ['건틀릿', '너클', '권갑'], mage: ['지팡이', '완드', '마도서'], ranger: ['장궁', '단궁', '합성궁'], lancer: ['장창', '미늘창', '기창'] };
 
 export function slotIcon(slot: Slot, cls?: string): Spr {
   switch (slot) {
-    case 'weapon': return cls === 'mage' ? SP.staff : cls === 'fist' ? SP.hammer : SP.sword;
+    case 'weapon': return cls === 'mage' ? SP.staff : cls === 'fist' ? SP.hammer : cls === 'ranger' ? SP.bow : cls === 'lancer' ? SP.spear : SP.sword;
     case 'armor': return SP.shield;
     case 'gloves': return SP.shieldR;
     case 'boots': return SP.sack;

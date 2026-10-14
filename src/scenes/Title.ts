@@ -30,6 +30,6 @@ export class Title extends Phaser.Scene {
     } });
     this.add.particles(0, 0, 'fx_spark', { x: { min: 0, max: W }, y: H + 10, speedY: { min: -40, max: -90 }, speedX: { min: -10, max: 10 }, scale: { start: 0.08, end: 0 }, alpha: { start: 0.8, end: 0 }, tint: [0xffa040, 0xb98cff], lifespan: 9000, frequency: 160, blendMode: 'ADD' });
     UI.open('title');
-    onInstallChange(() => { if (this.scene.isActive()) UI.open('title'); });
+    onInstallChange(() => UI.refresh());
   }
 }

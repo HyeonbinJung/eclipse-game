@@ -12,12 +12,12 @@ export interface Move {
   shape: Shape; poise: number; lunge?: number; hits?: number; interval?: number;
   eff?: string[]; mp?: number; res?: number; cd?: number;
   fx?: 'slash' | 'slashBig' | 'punch' | 'magic' | 'fire' | 'ice' | 'nova' | 'wave';
-  sfx?: string; ult?: number; maxTargets?: number; charge?: number; pen?: number; superArmor?: boolean; unlock?: number;
+  sfx?: string; ult?: number; maxTargets?: number; charge?: number; pen?: number; superArmor?: boolean; unlock?: number; fan?: number;
 }
 export interface ComboDef { name: string; total: number; eff: string[]; desc: string }
 export interface TraitOpt { id: string; name: string; desc: string }
 export interface ClassDef {
-  id: 'blade' | 'fist' | 'mage'; name: string; en: string; role: string; desc: string;
+  id: 'blade' | 'fist' | 'mage' | 'ranger' | 'lancer'; name: string; en: string; role: string; desc: string;
   spr: Spr; weapon: Spr | null; resName: string; color: number;
   L: Move[]; H: Move; Q: Move; E: Move; C: Move; R: Move;
   combos: Record<string, ComboDef>; traits: { lv: number; opts: [TraitOpt, TraitOpt] }[];
@@ -111,5 +111,7 @@ const MAGE: ClassDef = {
   ],
 };
 
-export const CLASSES: Record<string, ClassDef> = { blade: BLADE, fist: FIST, mage: MAGE };
-export const CLASS_LIST = [BLADE, FIST, MAGE];
+import { RANGER, LANCER } from './classes2';
+export { OUTFITS, TINTS } from './classes2';
+export const CLASSES: Record<string, ClassDef> = { blade: BLADE, fist: FIST, mage: MAGE, ranger: RANGER, lancer: LANCER };
+export const CLASS_LIST = [BLADE, FIST, MAGE, RANGER, LANCER];

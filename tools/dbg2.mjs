@@ -1,0 +1,10 @@
+import { chromium } from 'playwright-core';
+const b = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+await p.goto('http://localhost:4173/?debug', { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(3000);
+const fps = await p.evaluate(() => new Promise((res) => { let n = 0; const t = performance.now(); const f = () => { n++; if (performance.now() - t < 1000) requestAnimationFrame(f); else res(n); }; requestAnimationFrame(f); }));
+console.log('raf/s', fps, 'game fps', await p.evaluate(() => __game.loop.actualFps));
+const t1 = Date.now();
+await p.click('[data-a="open:login"]', { timeout: 20000 }).catch((e) => console.log('click fail', String(e.message).slice(0, 300)));
+console.log('click ms', Date.now() - t1, await p.evaluate(() => document.querySelector('#panel').className));
+await b.close();

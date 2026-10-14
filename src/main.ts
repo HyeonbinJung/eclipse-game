@@ -6,6 +6,7 @@ import { Hud } from './scenes/Hud';
 import { UI } from './ui/ui';
 import { initAudio, music } from './audio/audio';
 import { registerSW, applyUpdate } from './pwa';
+import { me } from './net/api';
 
 const fps30 = localStorage.getItem('eclipse_fps30') === '1';
 
@@ -25,6 +26,8 @@ const game = new Phaser.Game({
 });
 initAudio(game);
 UI.init(game);
+// 저장된 로그인 세션 확인 후 타이틀 갱신
+me().then(() => UI.refresh());
 (window as any).__game = game;
 
 // 첫 사용자 입력에서 오디오 컨텍스트 재개

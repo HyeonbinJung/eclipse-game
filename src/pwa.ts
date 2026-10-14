@@ -31,8 +31,9 @@ export function registerSW(onUpdate: () => void) {
           if (w.state === 'installed' && navigator.serviceWorker.controller) onUpdate();
         });
       });
-      let reloaded = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
+      // 첫 설치(clients.claim)에서는 새로고침하지 않고, 기존 버전이 교체될 때만 새로고침
+      const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
     } catch (e) { console.warn('SW 등록 실패', e); }
   });
 }

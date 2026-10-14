@@ -1,0 +1,11 @@
+import { chromium } from 'playwright-core';
+const b = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+const pending = new Map();
+p.on('request', (r) => pending.set(r, r.url()));
+p.on('requestfinished', (r) => pending.delete(r)); p.on('requestfailed', (r) => pending.delete(r));
+let loaded = false; p.on('load', () => (loaded = true));
+await p.goto('http://localhost:4173/?debug', { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(6000);
+console.log('load fired:', loaded, 'pending:', [...pending.values()]);
+console.log('readyState', await p.evaluate(() => document.readyState));
+await b.close();

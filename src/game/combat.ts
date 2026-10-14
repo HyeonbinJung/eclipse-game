@@ -7,7 +7,7 @@ export type Team = 'player' | 'enemy';
 export interface HitInfo {
   src: Actor; coef: number; parryable?: boolean; poise?: number; eff?: string[]; status?: string; kb?: number;
   ang?: number; cap25?: boolean; name?: string; pen?: number; dmgMul?: number; critBonus?: number; isProj?: boolean;
-  moveId?: string; ult?: number; tech?: string; fake?: boolean; elemental?: boolean; dot?: boolean; flat?: number; maxTargets?: number;
+  moveId?: string; ult?: number; tech?: string; fake?: boolean; elemental?: boolean; dot?: boolean; flat?: number; maxTargets?: number; noNet?: boolean;
 }
 
 export interface StatusMap {
@@ -132,6 +132,7 @@ export class Combat {
 
   strike(owner: Actor, shape: WShape, info: Omit<HitInfo, 'src'>, activeMs = 100, maxTargets = 99, onHit?: (t: Actor) => void) {
     const a: Atk = { id: ATK_ID++, owner, team: owner.team, shape, end: this.W.now + activeMs, info, maxTargets, hit: new Set(), onHit };
+    if (owner === this.W.player && !info.noNet) this.W.netStrike(shape, info);
     this.atks.push(a); this.resolveAtk(a); return a;
   }
   telegraph(shape: WShape, ms: number, style: TeleStyle, then?: () => void, owner?: Actor) {
@@ -153,6 +154,7 @@ export class Combat {
   projectile(owner: Actor, x: number, y: number, ang: number, speed: number, range: number, r: number, tex: string, tint: number, info: Omit<HitInfo, 'src'>, o: Partial<Proj> = {}) {
     const img = this.W.add.image(x, y, tex).setTint(tint).setBlendMode(Phaser.BlendModes.ADD).setScale(Math.max(0.12, r / 40)).setRotation(ang).setDepth(100001);
     const p: Proj = { x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, r, team: owner.team, owner, info: { ...info, isProj: true }, life: range / speed, pierce: false, hit: new Set(), img, ...o };
+    if (owner === this.W.player && !info.noNet) this.W.netProj({ x, y, ang, speed, range, r, tex, tint, pierce: !!o.pierce, explode: o.explode || 0 }, info);
     this.projs.push(p); return p;
   }
   zone(owner: Actor, shape: WShape, dur: number, info: Omit<HitInfo, 'src'>, color: number, tick = 500) {
@@ -196,7 +198,7 @@ export class Combat {
       if (p.dead) continue;
       p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; p.img.setPosition(p.x, p.y);
       if (p.trail) { p.trailT = (p.trailT || 0) - dt; if (p.trailT <= 0) { p.trailT = 0.03; this.W.fx.sprite(p.img.texture.key, p.x, p.y, { tint: p.img.tintTopLeft, scale: p.img.scaleX * 0.7, endScale: 0.01, dur: 180, rot: p.img.rotation }); } }
-      if (this.W.blocked(p.x, p.y)) { this.endProj(p); continue; }
+      if (this.W.shotBlocked(p.x, p.y)) { this.endProj(p); continue; }
       for (const t of this.targetsFor(p.team)) {
         if (p.hit.has(t)) continue;
         if (Math.hypot(t.x - p.x, t.y - (p.y + 8)) < p.r + t.r * 0.8) {

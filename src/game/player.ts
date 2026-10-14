@@ -41,18 +41,20 @@ export class Player extends Actor {
   combo = new ComboMeter(); aim = 0; weapon: Phaser.GameObjects.Image | null = null;
   lastHitBy = ''; buffs: Record<string, number> = {}; awarded = new Set<string>(); crownUsed = false; sealUsed = false;
   bleedExtra = 0; freezeExtra = 0; potionBelt = 3; lastCombatAt = -99999; moving = false; stepT = 0;
-  seenAt: Record<string, number> = {};
+  seenAt: Record<string, number> = {}; weaponPush = 0; hpMul = 1;
+  // PvP: 상대에게 패링당함
+  getParried() { this.pending = []; this.state = 'hit'; this.stateEnd = this.now + 650; this.curMove = null; this.superArmor = false; this.W.fx.label(this.x, this.y - 70, '패링당함!', '#ff7090', 15, 700); sfx('parry', 0.8); }
 
   constructor(W: World, x: number, y: number) {
     super(W); this.team = 'player'; this.x = x; this.y = y; this.c = cls();
-    this.makeSprite('dun', this.c.spr.frame, 3, 0xffffff); this.r = 14;
+    this.makeSprite('dun', S.look?.frame ?? this.c.spr.frame, 3, S.look?.tint ?? 0xffffff); this.r = 14;
     if (this.c.weapon) this.weapon = W.add.image(x, y, 'dun', this.c.weapon.frame).setScale(2.4).setOrigin(0.5, 0.85);
-    this.refreshStats(true); this.mp = this.stats.mpMax; this.name = '플레이어';
+    this.refreshStats(true); this.mp = this.stats.mpMax; this.name = S.name || '플레이어';
     this.bleedExtra = hasTrait('redmoon') ? 1000 : 0; this.freezeExtra = hasTrait('deepfreeze') ? 300 : 0;
   }
   refreshStats(full = false) {
     const ratio = this.maxHp > 1 ? this.hp / this.maxHp : 1;
-    this.stats = computeStats(); this.maxHp = this.stats.maxHp; this.atk = this.stats.atk; this.def = this.stats.def; this.level = S.level;
+    this.stats = computeStats(); this.maxHp = Math.round(this.stats.maxHp * this.hpMul); this.atk = this.stats.atk; this.def = this.stats.def; this.level = S.level;
     this.hp = full ? this.maxHp : Math.max(1, Math.round(this.maxHp * ratio));
   }
   get now() { return this.W.now; }
@@ -181,7 +183,7 @@ export class Player extends Actor {
     this.cancelAt = m.id.endsWith('_l3') ? this.stateEnd : m.id.match(/_l[12]$/) ? n + actT + 80 : this.stateEnd - 60;
     if (o.combo) this.W.fx.label(this.x, this.y - 70, o.combo.name, '#ffe28a', 15, 800);
     if (m.charge) { this.W.fx.burst(this.x, this.y - 20, this.c.color, 40, 'fx_light'); }
-    const hits = m.hits || 1;
+    const hits = (m.hits || 1) + (o.tech === 'Q' && hasTrait('volley') ? 1 : 0);
     for (let i = 0; i < hits; i++) {
       this.sched(actT + i * (m.interval || 0) * 1000, () => {
         if (this.state !== 'attack' && this.state !== 'ult') return;
@@ -207,6 +209,7 @@ export class Player extends Actor {
       pen: (m.pen || 0) + (o.tech === 'H' && hasTrait('shatter') ? 0.1 : 0), critBonus: eff.includes('critUp') ? 0.15 : 0,
     };
     if (o.tech === 'Q' && this.c.id === 'fist' && hasTrait('bind')) info.dmgMul = 1.2;
+    if (eff.includes('backstep')) this.knock(this.facing + Math.PI, 700);
     if (eff.includes('mp10')) this.mp = Math.min(this.stats.mpMax, this.mp + 10);
     const tint = this.c.color;
     switch (sh.t) {
@@ -218,9 +221,11 @@ export class Player extends Actor {
         break;
       }
       case 'rect': {
-        const shape: WShape = { k: 'rect', x: this.x, y: this.y - 10, a: f, len: sh.len, w: sh.w };
+        const len = sh.len * (o.tech.startsWith('L') && hasTrait('reach') ? 1.15 : 1);
+        const shape: WShape = { k: 'rect', x: this.x, y: this.y - 10, a: f, len, w: sh.w };
         this.W.combat.strike(this, shape, info, 90, m.maxTargets || 6);
         if (this.c.id === 'fist') { this.W.fx.burst(this.x + Math.cos(f) * sh.len * 0.6, this.y - 12 + Math.sin(f) * sh.len * 0.6, tint, sh.w, 'fx_twirl'); this.W.fx.shake(80, 0.003); }
+        else if (this.c.id === 'lancer') { this.W.fx.sprite('fx_trace', this.x + Math.cos(f) * len * 0.5, this.y - 12 + Math.sin(f) * len * 0.5, { tint, rot: f, scale: len / 110, dur: 160 }); }
         else this.W.fx.slash(this.x, this.y - 14, f, sh.len, tint, true);
         break;
       }
@@ -228,8 +233,18 @@ export class Player extends Actor {
         let cx = this.x, cy = this.y - 6;
         if (sh.at === 'aim') { const p = this.W.aimPoint(); const d = Math.min(sh.maxDist || 200, Math.hypot(p.x - this.x, p.y - this.y)); cx = this.x + Math.cos(this.aim) * d; cy = this.y + Math.sin(this.aim) * d; }
         let r = sh.r; if (this.c.id === 'mage' && o.tech === 'Q' && hasTrait('spread')) r *= 1.12;
+        if (o.tech === 'E' && hasTrait('dragon')) r *= 1.2;
+        if (eff.includes('leap')) {
+          // 낙창: 조준 지점으로 도약 후 착지 타격
+          const sx = this.x, sy = this.y; this.invulnUntil = this.now + 260;
+          this.W.tweens.addCounter({ from: 0, to: 1, duration: 240, onUpdate: (tw) => { const k = tw.getValue(); this.W.moveActorTo(this, sx + (cx - sx) * k, sy + (cy + 6 - sy) * k); this.offY = -Math.sin(k * Math.PI) * 60; }, onComplete: () => {
+            this.offY = 0; this.W.combat.strike(this, { k: 'circle', x: this.x, y: this.y - 6, r }, info, 90, m.maxTargets || 8); this.W.fx.burst(this.x, this.y, tint, r, 'fx_circle'); this.W.fx.smoke(this.x, this.y, 0xbbaa88, 4); this.W.fx.shake(120, 0.006); sfx('slam', 0.7);
+          } });
+          break;
+        }
         this.W.combat.strike(this, { k: 'circle', x: cx, y: cy, r }, info, 90, m.maxTargets || 8);
         if (this.c.id === 'mage') { this.W.fx.burst(cx, cy, tint, r, 'fx_magic'); this.W.fx.sparks(cx, cy, tint, 6, r); }
+        else if (this.c.id === 'ranger') { for (let k = 0; k < 4; k++) this.W.fx.sprite('fx_trace', cx + (Math.random() - 0.5) * r, cy + (Math.random() - 0.5) * r - 30, { tint, rot: Math.PI / 2, scale: 0.4, dur: 220, dy: 30 }); }
         else if (m.fx === 'slashBig') { this.W.fx.slash(cx, cy, Math.random() * 6.28, r, tint, true); }
         else this.W.fx.burst(cx, cy, tint, r, 'fx_twirl');
         if (o.tech === 'R') this.W.fx.shake(60, 0.004);
@@ -237,15 +252,19 @@ export class Player extends Actor {
       }
       case 'proj': {
         let speed = sh.speed; if (o.tech === 'E' && hasTrait('wavelength')) speed *= 1.2;
-        const ang = this.W.nearestAimAssist(this.x, this.y, this.aim);
-        this.facing = ang;
+        const ang0 = this.W.nearestAimAssist(this.x, this.y, this.aim);
+        this.facing = ang0;
         const explode = sh.explode ? sh.explode * (hasTrait('spread') ? 1.12 : 1) : 0;
-        this.W.combat.projectile(this, this.x + Math.cos(ang) * 18, this.y - 16 + Math.sin(ang) * 18, ang, speed, sh.range, sh.r, sh.tex, sh.tint, { ...info, maxTargets: m.maxTargets } as any, {
+        const range = sh.range * (hasTrait('eagle') ? 1.15 : 1); const nShots = m.fan || 1;
+        for (let k = 0; k < nShots; k++) { const ang = ang0 + (k - (nShots - 1) / 2) * 0.2;
+        this.W.combat.projectile(this, this.x + Math.cos(ang) * 18, this.y - 16 + Math.sin(ang) * 18, ang, speed, range, sh.r, sh.tex, sh.tint, { ...info, moveId: nShots > 1 ? key + '_' + k : key, maxTargets: m.maxTargets } as any, {
           pierce: !!sh.pierce, trail: 1,
           explode: explode || undefined,
-          onEnd: explode ? (p) => { this.W.combat.strike(this, { k: 'circle', x: p.x, y: p.y, r: explode }, { ...info, moveId: key + 'x' }, 80, 8); this.W.fx.burst(p.x, p.y, 0xff8a3a, explode, 'fx_flame'); this.W.fx.sparks(p.x, p.y, 0xffc070, 8, explode); sfx('slam', 0.5); } : undefined,
-        });
+          onEnd: explode ? (p) => { this.W.combat.strike(this, { k: 'circle', x: p.x, y: p.y, r: explode }, { ...info, moveId: key + 'x', noNet: true }, 80, 8); this.W.fx.burst(p.x, p.y, 0xff8a3a, explode, 'fx_flame'); this.W.fx.sparks(p.x, p.y, 0xffc070, 8, explode); sfx('slam', 0.5); } : undefined,
+        }); }
+        const ang = ang0;
         if (this.c.id === 'mage') this.W.fx.sprite('fx_light', this.x + Math.cos(ang) * 22, this.y - 16 + Math.sin(ang) * 22, { tint: sh.tint, scale: 0.2, endScale: 0.4, dur: 140 });
+        else if (this.c.id === 'ranger') this.W.fx.sprite('fx_spark', this.x + Math.cos(ang) * 24, this.y - 16 + Math.sin(ang) * 24, { tint, scale: 0.15, dur: 120 });
         else this.W.fx.slash(this.x, this.y - 14, ang, 70, tint, true);
         break;
       }
@@ -261,6 +280,7 @@ export class Player extends Actor {
     if (this.stats.uniques.has('dashDmg') && (this.buffs.dash || 0) > n) mul *= 1.15;
     const chilled = (t.st.slow && t.st.slow.until > n) || (t.st.freeze && t.st.freeze.until > n);
     if (this.stats.relics.has('glacier_eye') && chilled) mul *= 1.08;
+    if (hasTrait('hunter') && chilled) mul *= 1.12;
     if (this.stats.relics.has('void_revelation') && (this.buffs.revelation || 0) > n && /^[QER]/.test(h.tech || '')) mul *= 1.1;
     if (this.c.id === 'mage' && (chilled || (t.st.burn && t.st.burn.until > n))) mul *= hasTrait('resonance') ? 1.22 : 1.1;
     let crit = this.stats.crit + (h.critBonus || 0);
@@ -314,6 +334,7 @@ export class Player extends Actor {
   }
   damage(d: number, h: HitInfo, big: boolean) {
     this.hp -= d; this.flashUntil = this.now + 70;
+    this.W.onPlayerDamaged(d, h);
     this.W.fx.dmgText(this.x, this.y - 40, '-' + d, h.dot ? '#d59cff' : '#ff6a6a', false);
     if (big) { sfx('hurt', 0.8); this.W.fx.shake(110, 0.006); this.combo.onHurt(this.now, hasTrait('swordsaint')); this.W.onPlayerHurt(); }
     if (this.hp <= 0) { this.hp = 0; this.die(); }
@@ -412,10 +433,13 @@ export class Player extends Actor {
       if ((this.state === 'attack' || this.state === 'ult') && this.curMove) {
         const p = Phaser.Math.Clamp((n - this.stateStart) / Math.max(1, this.stateEnd - this.stateStart), 0, 1);
         if (this.c.id === 'mage') wa = this.facing + Math.PI / 2 - 0.5 * Math.sin(p * Math.PI);
+        else if (this.c.id === 'ranger') wa = this.facing + Math.PI / 4;
+        else if (this.c.id === 'lancer') { wa = this.facing + Math.PI / 2; this.weaponPush = Math.sin(Math.min(1, p / Math.max(0.2, this.curMove.act + 0.1)) * Math.PI) * 26; }
         else { const sw = Phaser.Math.Easing.Cubic.Out(Math.min(1, p / Math.max(0.2, this.curMove.act + 0.15))); wa = this.facing + Math.PI / 2 + (-1.9 + 3.4 * sw) * side; }
       } else if (this.state === 'parry') wa = this.facing + Math.PI / 2 - 0.2;
       else wa = side * 0.5 + (this.moving ? Math.sin(n / 85) * 0.15 : 0);
-      const hx = this.x + side * 10 + this.offX, hy = this.y - 18 + this.bob;
+      if (this.state !== 'attack' && this.state !== 'ult') this.weaponPush = 0;
+      const hx = this.x + side * 10 + this.offX + Math.cos(this.facing) * this.weaponPush, hy = this.y - 18 + this.bob + this.offY + Math.sin(this.facing) * this.weaponPush;
       this.weapon.setPosition(hx, hy).setRotation(wa).setDepth(this.y + (Math.sin(this.facing) > 0.3 ? 1 : -1)).setFlipX(false);
     }
   }

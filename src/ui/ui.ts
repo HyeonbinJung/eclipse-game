@@ -13,6 +13,8 @@ import { Spr } from '../data/sprites';
 import { potionPrice, rerollCost, craftCost, xpToNext, cumulativeXp } from '../data/formulas';
 import { sfx, music } from '../audio/audio';
 import { canInstall, promptInstall, isStandalone } from '../pwa';
+import { renderTitle as accTitle, renderLogin, renderCharSelect, renderCharCreate, renderArena, renderPvpResult, renderRank, accountAction, leaveToTitle, Ctx } from './account';
+import { pvp } from '../net/pvp';
 
 let game: Phaser.Game; let root: HTMLElement; let panel: HTMLElement; let toasts: HTMLElement; let overlay: HTMLElement;
 let current = ''; let currentOpts: any = {}; let blocking = false; let dialogCb: (() => void) | null = null;
@@ -51,7 +53,7 @@ export const UI = {
     root.addEventListener('input', onInput);
     window.addEventListener('keydown', (e) => {
       if (current === 'dialog' && (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyG')) { e.preventDefault(); advanceDialog(); }
-      else if (current && blocking && e.code === 'Escape' && current !== 'title' && current !== 'dialog' && current !== 'death' && current !== 'results' && current !== 'ending' && current !== 'classSelect') UI.close();
+      else if (current && blocking && e.code === 'Escape' && current !== 'title' && current !== 'dialog' && current !== 'death' && current !== 'results' && current !== 'ending' && current !== 'pvpResult') UI.close();
       else if (current === 'results' && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); clickAction('closeResults', null as any); }
     });
     const fit = () => {
@@ -63,13 +65,16 @@ export const UI = {
   },
   isOpen() { return !!current && blocking; },
   toggle(name: string) { if (current === name) UI.close(); else if (!UI.isOpen()) UI.open(name); },
+  refresh() { if (current) render(); },
   close(force = false) {
-    if (!force && (current === 'dialog' || current === 'death' || current === 'results' || current === 'ending')) return;
+    if (!force && (current === 'dialog' || current === 'death' || current === 'results' || current === 'ending' || current === 'pvpResult')) return;
+    if (current === 'arena') { if (pvp.status === 'queued' || pvp.status === 'room') pvp.cancel(); currentOpts?.cleanup?.(); }
     if (current && current !== 'title') sfx('click', 0.4);
     current = ''; blocking = false; panel.innerHTML = ''; panel.className = ''; overlay.className = '';
   },
   open(name: string, opts: any = {}) {
-    if (!S && name !== 'title' && name !== 'classSelect' && name !== 'settings' && name !== 'help') return;
+    if (!S && !['title', 'settings', 'help', 'login', 'charSelect', 'charCreate', 'rank'].includes(name)) return;
+    if (current === 'arena' && name !== 'arena') { if (pvp.status === 'queued' || pvp.status === 'room') pvp.cancel(); currentOpts?.cleanup?.(); }
     current = name; currentOpts = opts; blocking = true; sfx('click', 0.4);
     overlay.className = name === 'dialog' ? '' : 'on';
     panel.className = 'p-' + name; render();
@@ -101,11 +106,16 @@ function advanceDialog() {
 function render() {
   const o = currentOpts; let h = '';
   switch (current) {
-    case 'title': h = renderTitle(); break;
-    case 'classSelect': h = renderClassSelect(); break;
+    case 'title': h = accTitle(ctx()); break;
+    case 'login': h = renderLogin(ctx()); break;
+    case 'charSelect': h = renderCharSelect(ctx()); break;
+    case 'charCreate': h = renderCharCreate(ctx()); break;
+    case 'arena': h = renderArena(ctx()); break;
+    case 'pvpResult': h = renderPvpResult(ctx()); break;
+    case 'rank': h = renderRank(ctx()); break;
     case 'menu': h = `<h2>메뉴</h2><div class="col">
       <button data-a="close">계속하기</button><button data-a="open:inventory">가방 (I)</button><button data-a="open:quest">퀘스트 (J)</button><button data-a="open:traits">특성 · 스킬 (K)</button>
-      <button data-a="open:settings">설정</button><button data-a="open:help">도움말 (F1)</button>${world()?.mode && world().mode !== 'town' ? '<button data-a="leave">마을로 귀환</button>' : ''}${pwaButton()}<button data-a="toTitle" class="dim-btn">저장 후 타이틀로</button></div>`; break;
+      <button data-a="open:settings">설정</button><button data-a="open:help">도움말 (F1)</button>${world()?.mode && world().mode !== 'town' ? `<button data-a="leave">${world().mode === 'pvp' ? '기권하고 나가기' : '마을로 귀환'}</button>` : ''}${world()?.mode === 'town' ? '<button data-a="open:arena">투기장 (PvP)</button>' : ''}<button data-a="open:rank">랭킹</button>${pwaButton()}<button data-a="toTitle" class="dim-btn">저장 후 타이틀로</button></div>`; break;
     case 'inventory': h = renderInventory(); break;
     case 'quest': h = renderQuest(); break;
     case 'board': h = renderBoard(); break;
@@ -135,23 +145,6 @@ function pwaButton() {
   if (isStandalone()) return '';
   return canInstall() ? '<button data-a="install" class="pwa">⬇ 앱으로 설치 (PWA)</button>' : '<button data-a="installHelp" class="pwa">⬇ 앱 설치 방법</button>';
 }
-function renderTitle() {
-  const sv = peekSave();
-  const cont = sv ? `<button data-a="continue" class="primary">이어하기 — ${CLASSES[sv.classId].name} Lv${sv.level} · ${CHAPTERS[(sv.chapter || 1) - 1].name}</button>` : '';
-  return `<div class="title"><div class="logo">ECLIPSE</div><div class="sub">잊혀진 균열 · 2D 액션 RPG</div>
-    <div class="col">${cont}<button data-a="open:classSelect" ${sv ? '' : 'class="primary"'}>새 게임</button><button data-a="open:settings">설정</button><button data-a="open:help">조작법</button>${pwaButton()}</div>
-    <div class="credit">아트·사운드: Kenney (CC0) · 폰트: Galmuri (OFL) · 배경음: 절차 생성<br>Design Baseline 1.0 · EXTRIVER PRESENTS</div></div>`;
-}
-function renderClassSelect() {
-  const bal: Record<string, number[]> = { blade: [100, 100, 100, 100], fist: [102, 96, 107, 112], mage: [98, 107, 94, 88] };
-  return `<h2>직업 선택</h2><div class="classes">${CLASS_LIST.map((c) => `
-    <div class="ccard" data-a="pickClass:${c.id}"><div class="cbig">${ico(c.spr, 'x2')}</div><div class="cname">${c.name}<span>${c.en}</span></div>
-      <div class="crole">${c.role}</div><div class="cdesc">${c.desc}</div>
-      <div class="cskills">Q ${c.Q.name} · E ${c.E.name} · R ${c.R.name}</div>
-      <div class="cbal"><div>보스 DPS <b>${bal[c.id][0]}</b></div><div>다수 처리 <b>${bal[c.id][1]}</b></div><div>피격 허용도 <b>${bal[c.id][2]}</b></div><div>패링 리턴 <b>${bal[c.id][3]}</b></div></div>
-    </div>`).join('')}</div>${hasSave() ? '<div class="warn">새 게임을 시작하면 기존 저장 데이터를 덮어씁니다.</div>' : ''}<button data-a="open:title">뒤로</button>`;
-}
-
 // ---------- 인벤토리 ----------
 function renderInventory() {
   const st = computeStats(); const sel: Item | undefined = currentOpts.sel ? S.inventoryItems.find((i) => i.uuid === currentOpts.sel) : undefined;
@@ -296,13 +289,15 @@ function onInput(e: Event) {
   if (k === 'fps30') localStorage.setItem('eclipse_fps30', t.checked ? '1' : '0');
   persist();
 }
+function ctx(): Ctx { return { opts: currentOpts, render, open: UI.open, close: UI.close, toast: UI.toast, startWorld, pwaButton }; }
 function onClick(e: MouseEvent) {
   if (current === 'dialog') { advanceDialog(); return; }
   const el = (e.target as HTMLElement).closest('[data-a]') as HTMLElement; if (!el || (el as any).disabled) return;
-  clickAction(el.dataset.a!, el);
+  const a = el.dataset.a!; const [cmd, p1] = a.split(':');
+  accountAction(cmd, p1, ctx()).then((handled) => { if (!handled) clickAction(a, el); }).catch((err) => UI.toast(String(err?.message || err), '#ff9a9a'));
 }
 function startWorld(d: any) {
-  UI.close(true);
+  UI.close(true); if (S) music.setVolume(S.settings.bgm);
   if (game.scene.isActive('Title')) game.scene.stop('Title');
   if (game.scene.isActive('World')) (game.scene.getScene('World') as any).travel(d);
   else game.scene.start('World', d);
@@ -312,12 +307,10 @@ function clickAction(a: string, _el: HTMLElement) {
   switch (cmd) {
     case 'close': UI.close(); break;
     case 'open': UI.open(p1); break;
-    case 'continue': if (loadGame()) { music.setVolume(S.settings.bgm); startWorld({ mode: 'town', ch: S.chapter || 1 }); } break;
-    case 'pickClass': newGame(p1); music.setVolume(S.settings.bgm); startWorld({ mode: 'town', ch: 1 }); break;
     case 'install': promptInstall().then(() => render()); break;
     case 'installHelp': UI.toast(location.protocol === 'file:' ? 'PWA 설치는 http(s) 서버에서 열어야 합니다 (npm run preview).' : '브라우저 주소창 오른쪽의 설치 아이콘(⊕) 또는 메뉴 → "앱 설치"를 사용하세요.', '#9fe0ff', 5000); break;
     case 'leave': UI.close(true); W?.travel({ mode: 'town', ch: S.chapter }); break;
-    case 'toTitle': persist(); UI.close(true); game.scene.stop('World'); game.scene.stop('Hud'); music.stop(); game.scene.start('Title'); break;
+    case 'toTitle': persist(); if (W?.mode === 'pvp') pvp.leave(); leaveToTitle(); UI.close(true); game.scene.stop('World'); game.scene.stop('Hud'); music.stop(); game.scene.start('Title'); break;
     case 'sel': currentOpts.sel = p1; render(); break;
     case 'ssel': currentOpts.sel = p1; render(); break;
     case 'sort': currentOpts.sort = p1; render(); break;

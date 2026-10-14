@@ -38,7 +38,7 @@ export class Hud extends Phaser.Scene {
     for (const k in this.t) if (k !== 'help') this.t[k].setText('');
     if (!W || !S) return;
     const P = W.player; const c = cls(); const n = W.now;
-    this.portrait.setFrame(c.spr.frame);
+    this.portrait.setFrame(S.look?.frame ?? c.spr.frame).setTint(S.look?.tint ?? 0xffffff);
     // ── 좌상 HP/자원 ──
     g.fillStyle(0x0b0f1c, 0.75).fillRoundedRect(8, 8, 290, 125, 8); g.lineStyle(1, 0x3a4060, 1).strokeRoundedRect(8, 8, 290, 125, 8);
     const bar = (x: number, y: number, w: number, h: number, f: number, col: number, bg = 0x241a22) => { g.fillStyle(bg, 1).fillRect(x, y, w, h); g.fillStyle(col, 1).fillRect(x, y, w * Phaser.Math.Clamp(f, 0, 1), h); g.lineStyle(1, 0x000000, 0.8).strokeRect(x, y, w, h); };
@@ -48,9 +48,9 @@ export class Hud extends Phaser.Scene {
     bar(84, 40, 204, 12, resF, c.id === 'mage' ? 0x5a8cff : 0xffa040); this.t.res.setText(`${c.resName} ${Math.floor(c.id === 'mage' ? P.mp : P.res)}`);
     if (S.level >= 20) { bar(84, 58, 204, 10, P.ult / 100, P.ult >= 100 ? 0xfff070 : 0xd0a020); this.t.ult.setText(P.ult >= 100 ? '궁극기 준비! [R]' : `궁극기 ${Math.floor(P.ult)}%`); }
     const xpF = S.level >= 50 ? 1 : S.currentXp / xpToNext(S.level); bar(18, 84, 270, 4, xpF, 0x6ab0ff, 0x1a2030);
-    this.t.lv.setText(`Lv ${S.level}`).setPosition(18, 68);
+    this.t.lv.setText(`Lv ${S.level}  ${S.name || ''}`).setPosition(18, 68);
     this.t.gold.setText(`G ${S.gold.toLocaleString()}   정수 ${S.essence[W.ch.id]}   포션 ${P.potionBelt}/${W.mode === 'dungeon' || W.mode === 'boss' ? 3 : S.potions}`);
-    const modeName = W.mode === 'town' ? W.ch.town : W.mode === 'field' ? `${W.ch.field} (Lv${W.areaLevel})` : W.mode === 'dungeon' ? W.dungeon.name : W.boss?.B.name || '';
+    const modeName = W.mode === 'town' ? W.ch.town : W.mode === 'field' ? `${W.ch.field} (Lv${W.areaLevel})` : W.mode === 'dungeon' ? W.dungeon.name : W.mode === 'pvp' ? '투기장' : W.boss?.B.name || '';
     this.t.area.setText(`${W.ch.name} · ${modeName}`);
     // 상태이상 아이콘(텍스트)
     const sts: string[] = []; const st = P.st;
@@ -98,6 +98,16 @@ export class Hud extends Phaser.Scene {
       this.t.boss.setText(`${B.B.name}  ·  ${Math.ceil(B.hp).toLocaleString()} / ${B.maxHp.toLocaleString()}`).setPosition(640, 22);
       if (S.settings.patternName && W.bossPatternName && (B.fsm === 'TELEGRAPH' || B.fsm === 'ATTACK' || B.fsm === 'STAGGER')) this.t.bossPat.setText(W.bossPatternName).setPosition(640, 98);
       this.t.bossPh.setText(`페이즈 ${B.phase + 1}/${B.B.phases.length + 1}${W.bossPhaseText ? ' · ' + W.bossPhaseText : ''}`).setPosition(640, 116);
+    }
+    // ── PvP 상대 ──
+    const R = W.remote;
+    if (R && W.mode === 'pvp') {
+      const bw2 = 520, bx = 640 - bw2 / 2, by = 36;
+      g.fillStyle(0x0b0f1c, 0.8).fillRoundedRect(bx - 10, 6, bw2 + 20, 62, 8);
+      bar(bx, by, bw2, 18, R.hp / R.maxHp, 0xd03050, 0x2a1018);
+      this.t.boss.setText(`${R.snap.name} (${R.snap.user || ''}) · Lv${R.snap.level} · 레이팅 ${R.snap.rating ?? '-'}`).setPosition(640, 22);
+      const left = Math.max(0, (W.pvpEnd - Math.max(n, W.pvpStart)) / 1000);
+      this.t.bossPat.setText(`${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`).setPosition(640, 74).setColor(left < 15 ? '#ff7080' : '#ffffff');
     }
     if (W.mode === 'town' && W.dummyLog.length) this.t.dps.setText(`훈련 인형 DPS ${W.dummyDps()}`).setPosition(640, 120).setColor('#ffd9a0');
     // ── 미니맵 ──

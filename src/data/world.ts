@@ -2,6 +2,7 @@
 import { SP, Spr } from './sprites';
 
 export interface Theme {
+  liquid: 'water' | 'lava' | 'ice' | 'void' | 'moat'; solid: 'trees' | 'wall' | 'rock';
   groundSheet: 'dun' | 'town'; ground: number[]; groundTint: number; wallFrame: number; wallSheet: 'dun' | 'town'; wallTint: number;
   props: { spr: Spr; tint: number; solid: boolean; scale?: number; w: number }[]; bg: number; ambient: number; fog: number;
 }
@@ -13,6 +14,7 @@ export interface ChapterDef {
 }
 
 const forest: Theme = {
+  liquid: 'water', solid: 'trees',
   groundSheet: 'town', ground: [0, 0, 0, 0, 0, 1, 1, 2], groundTint: 0x8fb880, wallSheet: 'town', wallFrame: 16, wallTint: 0x7aa070,
   props: [
     { spr: SP.treeG, tint: 0x8ab880, solid: true, w: 4 }, { spr: SP.pine, tint: 0x88b080, solid: true, w: 4 },
@@ -21,6 +23,7 @@ const forest: Theme = {
   ], bg: 0x23341f, ambient: 0xffffff, fog: 0x1a2a18,
 };
 const castle: Theme = {
+  liquid: 'moat', solid: 'wall',
   groundSheet: 'town', ground: [109], groundTint: 0xb8b0a8, wallSheet: 'dun', wallFrame: 40, wallTint: 0x8a8090,
   props: [
     { spr: SP.tomb1, tint: 0xa8a0b0, solid: true, w: 2 }, { spr: SP.tomb2, tint: 0xa8a0b0, solid: true, w: 1 },
@@ -29,6 +32,7 @@ const castle: Theme = {
   ], bg: 0x1d1a24, ambient: 0xe8e0ff, fog: 0x17141d,
 };
 const ice: Theme = {
+  liquid: 'ice', solid: 'rock',
   groundSheet: 'town', ground: [109], groundTint: 0xa8c4dc, wallSheet: 'dun', wallFrame: 40, wallTint: 0xa8d8f0,
   props: [
     { spr: SP.pine, tint: 0xd8f4ff, solid: true, w: 4 }, { spr: SP.rock, tint: 0xa8d0f0, solid: true, w: 2 },
@@ -37,6 +41,7 @@ const ice: Theme = {
   ], bg: 0x18283a, ambient: 0xe0f4ff, fog: 0x10202e,
 };
 const waste: Theme = {
+  liquid: 'lava', solid: 'rock',
   groundSheet: 'dun', ground: [48, 48, 48, 48, 42], groundTint: 0xe89a70, wallSheet: 'dun', wallFrame: 40, wallTint: 0x905848,
   props: [
     { spr: SP.treeOS, tint: 0x7a4a30, solid: true, w: 3 }, { spr: SP.rock, tint: 0x8a5040, solid: true, w: 3 },
@@ -45,6 +50,7 @@ const waste: Theme = {
   ], bg: 0x2a1610, ambient: 0xffe0d0, fog: 0x24120c,
 };
 const rift: Theme = {
+  liquid: 'void', solid: 'wall',
   groundSheet: 'town', ground: [109], groundTint: 0x7a68b0, wallSheet: 'dun', wallFrame: 40, wallTint: 0x6a50a0,
   props: [
     { spr: SP.gargoyleG, tint: 0xc090ff, solid: true, w: 2 }, { spr: SP.tomb1, tint: 0x9a80d0, solid: true, w: 2 },
@@ -53,6 +59,7 @@ const rift: Theme = {
   ], bg: 0x140e24, ambient: 0xe8d8ff, fog: 0x0e0a1a,
 };
 const townTheme = (tint: number, bg: number): Theme => ({
+  liquid: 'water', solid: 'trees',
   groundSheet: 'town', ground: [0, 0, 0, 1, 2], groundTint: tint, wallSheet: 'town', wallFrame: 16, wallTint: tint,
   props: [{ spr: SP.treeG, tint, solid: true, w: 3 }, { spr: SP.bush, tint, solid: false, w: 2 }, { spr: SP.treeO, tint, solid: true, w: 1 }],
   bg, ambient: 0xffffff, fog: bg,

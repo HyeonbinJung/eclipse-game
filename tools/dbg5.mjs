@@ -1,0 +1,10 @@
+import { chromium } from 'playwright-core';
+const gpu = process.argv[2] === 'gpu';
+const b = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: gpu ? [] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+await p.addInitScript(() => { window.__lt = []; new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lt.push(Math.round(e.duration)); }).observe({ type: 'longtask', buffered: true }); });
+await p.goto('http://localhost:4173/', { waitUntil: 'domcontentloaded' });
+const t0 = Date.now(); await p.waitForTimeout(15000);
+const r = await p.evaluate(() => ({ lt: window.__lt.slice(-40), fps: __game.loop.actualFps, renderer: __game.renderer.type }));
+console.log('gpu', gpu, 'evaluate latency', Date.now() - t0 - 15000, 'ms', JSON.stringify(r));
+await b.close();

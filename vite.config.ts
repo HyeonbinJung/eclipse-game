@@ -36,5 +36,5 @@ export default defineConfig({
   base: './',
   plugins: [pwaPrecache()],
   build: { chunkSizeWarningLimit: 2500, assetsInlineLimit: 0 },
-  server: { port: 5173 },
+  server: { port: 5173, proxy: { '/api': 'http://localhost:4173', '/ws': { target: 'ws://localhost:4173', ws: true } } },
 });

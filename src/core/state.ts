@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { CLASSES } from '../data/classes';
 import { xpToNext, MAX_LEVEL, randi, rerollCost, craftCost, R } from '../data/formulas';
 import { Item, makeItem, Slot, SLOTS, ENHANCE, RAR, rarityIndex, rollAffixes, rollRarity, makeRelic, RELIC } from '../data/items';
+import { queueUpload } from '../net/api';
 import { MAIN_QUESTS, SIDE_QUESTS, CHAPTERS, chapterOfLevel } from '../data/world';
 
 export const SCHEMA_VERSION = 1;
@@ -10,7 +11,7 @@ export const bus = new Phaser.Events.EventEmitter();
 
 export interface Settings { sfx: number; bgm: number; shake: boolean; patternName: boolean; photosensitive: boolean; dmgNumbers: boolean; fps30: boolean; hints: boolean }
 export interface SaveGame {
-  schemaVersion: number; accountId?: string; characterId: string; classId: string; level: number; currentXp: number; gold: number;
+  schemaVersion: number; accountId?: string; characterId: string; classId: string; name: string; look: { frame: number; tint: number }; level: number; currentXp: number; gold: number;
   attributes: { str: number; vit: number }; skills: Record<string, number>; traitChoices: Record<string, number>;
   equipmentItemIds: Partial<Record<Slot, string>>; inventoryItems: Item[];
   questStates: { main: number; mainActive: boolean; mainProgress: number; side: { id: string; progress: number } | null; sideDone: string[] };
@@ -24,9 +25,9 @@ export let S: SaveGame = null as any;
 
 export const defaultSettings = (): Settings => ({ sfx: 0.7, bgm: 0.45, shake: true, patternName: true, photosensitive: false, dmgNumbers: true, fps30: false, hints: true });
 
-export function newGame(classId: string) {
+export function newGame(classId: string, name = '', look?: { frame: number; tint: number }) {
   S = {
-    schemaVersion: SCHEMA_VERSION, characterId: 'c-' + Date.now().toString(36), classId, level: 1, currentXp: 0, gold: 120,
+    schemaVersion: SCHEMA_VERSION, characterId: 'c-' + Date.now().toString(36), classId, name: name || '모험가', look: look || { frame: CLASSES[classId].spr.frame, tint: 0xffffff }, level: 1, currentXp: 0, gold: 120,
     attributes: { str: 5, vit: 4 }, skills: {}, traitChoices: {}, equipmentItemIds: {}, inventoryItems: [],
     questStates: { main: 1, mainActive: false, mainProgress: 0, side: null, sideDone: [] },
     clearedBosses: {}, perBossPityCounts: {}, settings: loadSettingsOnly() || defaultSettings(),
@@ -39,17 +40,22 @@ export function newGame(classId: string) {
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
-const KEY = (s: string) => 'eclipse_save_' + s;
+// 저장 네임스페이스: 게스트는 'eclipse_save_', 계정 캐릭터는 'eclipse_u{id}_s{slot}_'
+let NS = 'eclipse_save_';
+export function setStorageNs(ns: string) { NS = ns; }
+const KEY = (s: string) => NS + s;
+const SLOTKEY = () => NS + 'slot';
 
 // 저장 실패 대비 직전 세이브 2개 로테이션
 export function persist() {
   if (!S) return;
   S.lastSavedAt = Date.now();
   try {
-    const slot = localStorage.getItem('eclipse_slot') === 'a' ? 'b' : 'a';
+    const slot = localStorage.getItem(SLOTKEY()) === 'a' ? 'b' : 'a';
     localStorage.setItem(KEY(slot), JSON.stringify(S));
-    localStorage.setItem('eclipse_slot', slot);
+    localStorage.setItem(SLOTKEY(), slot);
   } catch (e) { console.warn('save failed', e); }
+  queueUpload(S);
 }
 function readSlot(s: string): SaveGame | null {
   try { const t = localStorage.getItem(KEY(s)); if (!t) return null; const o = JSON.parse(t); return o && o.classId ? o : null; } catch { return null; }
@@ -60,15 +66,26 @@ export function loadGame() {
   const s = peekSave(); if (!s) return false;
   S = migrate(s); return true;
 }
+// 서버에서 받은 세이브를 로컬 캐시보다 최신이면 채택
+export function adoptSave(remote: any) {
+  const local = peekSave();
+  const pickRemote = remote && (!local || (remote.lastSavedAt || 0) >= (local.lastSavedAt || 0));
+  S = migrate(pickRemote ? remote : local);
+  try { localStorage.setItem(KEY('a'), JSON.stringify(S)); localStorage.setItem(SLOTKEY(), 'a'); } catch { /* */ }
+  return pickRemote ? 'remote' : 'local';
+}
+export function clearCurrent() { S = null as any; }
 function migrate(s: any): SaveGame {
   if (!s.schemaVersion) s.schemaVersion = 1;
   s.settings = { ...defaultSettings(), ...(s.settings || {}) };
   s.bossDaily ||= { date: today(), counts: {} };
   s.seenStory ||= []; s.essence ||= [0, 0, 0, 0, 0, 0];
+  s.name ||= '모험가'; s.look ||= { frame: CLASSES[s.classId]?.spr.frame ?? 96, tint: 0xffffff };
   return s as SaveGame;
 }
 export function loadSettingsOnly(): Settings | null { const s = peekSave(); return s ? { ...defaultSettings(), ...s.settings } : null; }
 export function deleteSave() { localStorage.removeItem(KEY('a')); localStorage.removeItem(KEY('b')); }
+export function ns() { return NS; }
 
 // ---------- 성장 ----------
 export const cls = () => CLASSES[S.classId];
