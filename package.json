@@ -1,0 +1,21 @@
+{
+  "name": "eclipse-game",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ECLIPSE - 잊혀진 균열 | 2D 브라우저 액션 RPG (PWA)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  }
+}

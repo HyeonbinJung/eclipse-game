@@ -1,0 +1,16 @@
+import { chromium } from 'playwright-core';
+const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+const page = await ctx.newPage();
+await page.goto('http://localhost:4317/'); await page.waitForTimeout(4000);
+await page.evaluate(() => navigator.serviceWorker.ready);
+await page.reload(); await page.waitForTimeout(2500);
+console.log('controlled:', await page.evaluate(() => !!navigator.serviceWorker.controller));
+const m = await page.evaluate(async () => { const r = await fetch('./manifest.webmanifest'); const j = await r.json(); return { name: j.name, display: j.display, icons: j.icons.length }; });
+console.log('manifest', JSON.stringify(m));
+await ctx.setOffline(true);
+await page.reload(); await page.waitForTimeout(3500);
+const ok = await page.evaluate(() => !!document.querySelector('#game canvas') && document.body.innerText.includes('새 게임'));
+console.log('offline title render:', ok);
+await page.screenshot({ path: '../AppData/Local/Temp/claude/C--Users-PC/e6d0cfd2-3196-49cf-8d7f-8ff1614fed30/scratchpad/offline.png' });
+await browser.close();

@@ -1,0 +1,19 @@
+{
+  "name": "ECLIPSE - 잊혀진 균열",
+  "short_name": "ECLIPSE",
+  "description": "콤보·패링·보스 패턴 학습을 즐기는 2D 탑다운 액션 RPG",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#0b0f1c",
+  "theme_color": "#0b0f1c",
+  "lang": "ko",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
