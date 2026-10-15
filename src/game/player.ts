@@ -10,6 +10,9 @@ import { sfx } from '../audio/audio';
 import type { World } from '../scenes/World';
 import { resolveBody, Body } from './look';
 
+// a→b 최단 각도로 보간
+const lerpAng = (a: number, b: number, t: number) => a + Phaser.Math.Angle.Wrap(b - a) * t;
+
 export type Act = 'L' | 'H' | 'D' | 'F' | 'Q' | 'E' | 'R' | 'POT';
 export interface InputState { mx: number; my: number; aimX: number; aimY: number; pressed: Act[] }
 
@@ -39,7 +42,7 @@ export class Player extends Actor {
   counterUntil = 0; cds: Record<string, number> = {}; cdDur: Record<string, number> = {};
   iframeFrom = 0; iframeTo = 0; dashVx = 0; dashVy = 0; dashMoveUntil = 0; dodgedThisDash = false;
   parryTo = 0; lastParryAt = -1; superArmor = false; invulnUntil = 0;
-  combo = new ComboMeter(); aim = 0; weapon: Phaser.GameObjects.Image | null = null; body!: Body;
+  combo = new ComboMeter(); aim = 0; weapon: Phaser.GameObjects.Image | null = null; body!: Body; swingSide = 1;
   lastHitBy = ''; buffs: Record<string, number> = {}; awarded = new Set<string>(); crownUsed = false; sealUsed = false;
   bleedExtra = 0; freezeExtra = 0; potionBelt = 3; lastCombatAt = -99999; moving = false; stepT = 0;
   seenAt: Record<string, number> = {}; weaponPush = 0; hpMul = 1;
@@ -50,7 +53,7 @@ export class Player extends Actor {
     super(W); this.team = 'player'; this.x = x; this.y = y; this.c = cls();
     this.body = resolveBody(W, S.look, this.c.id);
     this.makeSprite(this.body.tex, this.body.frame, this.body.scale, this.body.tint, this.body.originY); this.r = 14;
-    if (this.c.weapon && this.body.weapon) this.weapon = W.add.image(x, y, 'dun', this.c.weapon.frame).setScale(2.4).setOrigin(0.5, 0.85);
+    if (this.c.weapon && this.body.weapon) this.weapon = W.add.image(x, y, 'dun', this.c.weapon.frame).setScale(this.body.weaponScale).setOrigin(0.5, 0.85);
     this.refreshStats(true); this.mp = this.stats.mpMax; this.name = S.name || '플레이어';
     this.bleedExtra = hasTrait('redmoon') ? 1000 : 0; this.freezeExtra = hasTrait('deepfreeze') ? 300 : 0;
   }
@@ -176,6 +179,7 @@ export class Player extends Actor {
     let dur = (m.dur / spd) * 1000;
     if (m.charge && hasTrait('burst')) dur -= m.charge * 120;
     this.state = o.ult ? 'ult' : 'attack'; this.stateStart = n; this.stateEnd = n + dur; this.curMove = m; this.hitConfirmed = false;
+    this.swingSide = m.id.endsWith('_l2') ? -1 : 1;
     this.superArmor = !!m.superArmor;
     this.lastCombatAt = n;
     let face = this.aim;
@@ -416,31 +420,62 @@ export class Player extends Actor {
     this.state = 'idle'; this.curMove = null; this.superArmor = false;
   }
 
+  // 공격 진행도를 예비동작(wind) → 타격(strike) → 회수(rec) 3구간으로 나눈다. 타격 시점 = Move.act.
+  // 다단히트는 타격마다 방향을 바꿔 이어서 휘두른다(alt = -1이면 반대 방향).
+  attackPhase(): { k: 'wind' | 'strike' | 'rec'; t: number; alt: number } | null {
+    const m = this.curMove; if (!m || (this.state !== 'attack' && this.state !== 'ult')) return null;
+    const dur = Math.max(1, this.stateEnd - this.stateStart), el = this.now - this.stateStart;
+    const act = m.act * dur, w = act * 0.8, strikeLen = Math.max(60, dur * 0.12);
+    const hits = m.hits || 1, iv = (m.interval || 0) * 1000, last = act + (hits - 1) * iv;
+    if (el < w) return { k: 'wind', t: el / Math.max(1, w), alt: 1 };
+    const sl = act - w + strikeLen, s = last - (act - w) + sl; // 각 휘두르기 = 타격 직전부터 strikeLen 뒤까지
+    if (el < s) {
+      if (hits <= 1 || iv <= 0) return { k: 'strike', t: (el - w) / sl, alt: 1 };
+      const j = Math.min(hits - 1, Math.floor((el - w) / iv));
+      return { k: 'strike', t: Math.min(1, (el - w - j * iv) / Math.min(iv, sl)), alt: j % 2 ? -1 : 1 };
+    }
+    const alt = hits > 1 && iv > 0 && (hits - 1) % 2 ? -1 : 1;
+    return { k: 'rec', t: Math.min(1, (el - s) / Math.max(1, dur - s)), alt };
+  }
+
   animate(dt: number) {
-    const n = this.now;
+    const n = this.now; const E = Phaser.Math.Easing;
     this.bob = this.moving ? Math.abs(Math.sin(n / 85)) * -3 : Math.sin(n / 400) * 0.6;
-    const flip = Math.cos(this.facing) < 0; this.spr.setFlipX(flip);
-    let rot = this.moving ? Math.sin(n / 85) * 0.07 : 0, sx = 1, sy = 1;
+    const flip = Math.cos(this.facing) < 0; this.spr.setFlipX(flip); const side = flip ? -1 : 1;
+    let rot = this.moving ? Math.sin(n / 85) * 0.07 : 0, sx = 1, sy = 1, lunge = 0;
     if (this.moving) { this.stepT -= dt; if (this.stepT <= 0) { this.stepT = 0.32; sfx('step', 0.12, 300); } }
-    if (this.state === 'attack' || this.state === 'ult') { const p = (n - this.stateStart) / Math.max(1, this.stateEnd - this.stateStart); sx = 1 + 0.12 * Math.sin(p * Math.PI); sy = 1 - 0.08 * Math.sin(p * Math.PI); rot = (flip ? -1 : 1) * 0.12 * Math.sin(p * Math.PI); }
+    const ph = this.attackPhase();
+    if (ph) {
+      // 몸: 뒤로 젖히며 웅크림 → 앞으로 기울며 뻗음 → 원위치
+      if (ph.k === 'wind') { const k = E.Quadratic.Out(ph.t); rot = -0.1 * k * side; sx = 1 + 0.04 * k; sy = 1 - 0.06 * k; lunge = -3 * k; }
+      else if (ph.k === 'strike') { const k = E.Cubic.Out(ph.t); rot = (-0.1 + 0.3 * k) * side; sx = 1.04 + 0.08 * k; sy = 0.94 - 0.02 * k; lunge = -3 + 9 * k; }
+      else { const k = 1 - E.Quadratic.InOut(ph.t); rot = 0.2 * k * side; sx = 1 + 0.12 * k; sy = 1 - 0.08 * k; lunge = 6 * k; }
+    }
     if (this.state === 'dash') { sx = 1.15; sy = 0.88; }
     if (this.state === 'parry') { sx = 0.92; sy = 1.08; }
     if (this.state === 'parryFail') rot = (flip ? 1 : -1) * 0.15;
     if (this.state === 'hit') rot = (flip ? 1 : -1) * 0.25;
+    this.offX = Math.cos(this.facing) * lunge; const lungeY = Math.sin(this.facing) * lunge * 0.6; this.bob += lungeY;
     this.spr.setRotation(rot).setScale(this.baseScale * sx, this.baseScale * sy);
-    if (this.state === 'parry' || this.counterUntil > n) this.spr.setAlpha(1);
     if (n < this.iframeTo && n >= this.iframeFrom) this.spr.setAlpha(0.55); else this.spr.setAlpha(1);
     if (this.weapon) {
-      let wa: number; const side = flip ? -1 : 1;
-      if ((this.state === 'attack' || this.state === 'ult') && this.curMove) {
-        const p = Phaser.Math.Clamp((n - this.stateStart) / Math.max(1, this.stateEnd - this.stateStart), 0, 1);
-        if (this.c.id === 'mage') wa = this.facing + Math.PI / 2 - 0.5 * Math.sin(p * Math.PI);
+      const idle = side * 0.5 + (this.moving ? Math.sin(n / 85) * 0.15 : 0);
+      const fwd = this.facing + Math.PI / 2; // 이 회전값이면 칼끝이 조준 방향을 향함
+      let wa = idle; this.weaponPush = 0;
+      if (ph) {
+        if (this.c.id === 'mage') { const k = ph.k === 'wind' ? -0.4 * E.Quadratic.Out(ph.t) : ph.k === 'strike' ? -0.4 + 0.9 * E.Cubic.Out(ph.t) : 0.5 * (1 - ph.t); wa = fwd - 0.6 + k; }
         else if (this.c.id === 'ranger') wa = this.facing + Math.PI / 4;
-        else if (this.c.id === 'lancer') { wa = this.facing + Math.PI / 2; this.weaponPush = Math.sin(Math.min(1, p / Math.max(0.2, this.curMove.act + 0.1)) * Math.PI) * 26; }
-        else { const sw = Phaser.Math.Easing.Cubic.Out(Math.min(1, p / Math.max(0.2, this.curMove.act + 0.15))); wa = this.facing + Math.PI / 2 + (-1.9 + 3.4 * sw) * side; }
-      } else if (this.state === 'parry') wa = this.facing + Math.PI / 2 - 0.2;
-      else wa = side * 0.5 + (this.moving ? Math.sin(n / 85) * 0.15 : 0);
-      if (this.state !== 'attack' && this.state !== 'ult') this.weaponPush = 0;
+        else if (this.c.id === 'lancer') { // 당겼다가 찌르고 회수
+          wa = fwd; this.weaponPush = ph.k === 'wind' ? -8 * E.Quadratic.Out(ph.t) : ph.k === 'strike' ? -8 + 34 * E.Cubic.Out(ph.t) : 26 * (1 - E.Quadratic.InOut(ph.t));
+        } else { // 검·도끼류: 콤보마다 방향을 바꿔 크게 베고, 끝나면 대기 자세로 천천히 돌아온다
+          const big = this.curMove!.id.endsWith('_l3') || this.curMove!.id.endsWith('_h') || this.state === 'ult';
+          const a0 = big ? -2.3 : -1.9, a1 = big ? 2.0 : 1.6, sw = side * this.swingSide * ph.alt;
+          const start = fwd + sw * a0, end = fwd + sw * a1;
+          if (ph.k === 'wind') wa = lerpAng(idle, start, E.Quadratic.Out(ph.t));
+          else if (ph.k === 'strike') { const k = E.Cubic.Out(ph.t); wa = fwd + sw * (a0 + (a1 - a0) * k); this.weaponPush = Math.sin(k * Math.PI) * 8; }
+          else wa = lerpAng(end, idle, E.Quadratic.InOut(ph.t));
+        }
+      } else if (this.state === 'parry') wa = fwd - 0.2;
       const hx = this.x + side * this.body.hand.x + this.offX + Math.cos(this.facing) * this.weaponPush, hy = this.y + this.body.hand.y + this.bob + this.offY + Math.sin(this.facing) * this.weaponPush;
       this.weapon.setPosition(hx, hy).setRotation(wa).setDepth(this.y + (Math.sin(this.facing) > 0.3 ? 1 : -1)).setFlipX(false);
     }

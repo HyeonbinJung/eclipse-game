@@ -16,7 +16,7 @@ export class Remote extends Actor {
     this.maxHp = this.hp = Math.round(snap.maxHp * PVP_HP); this.atk = Math.round(snap.atk * PVP_ATK); this.def = snap.def; this.level = snap.level;
     this.body = resolveBody(W, snap.look, snap.classId);
     this.makeSprite(this.body.tex, this.body.frame, this.body.scale, this.body.tint, this.body.originY); this.r = 14;
-    const c = CLASSES[snap.classId]; if (c?.weapon && this.body.weapon) this.weapon = W.add.image(x, y, c.weapon.sheet, c.weapon.frame).setScale(2.4).setOrigin(0.5, 0.85);
+    const c = CLASSES[snap.classId]; if (c?.weapon && this.body.weapon) this.weapon = W.add.image(x, y, c.weapon.sheet, c.weapon.frame).setScale(this.body.weaponScale).setOrigin(0.5, 0.85);
     this.tag = W.add.text(x, y, `${snap.name} Lv${snap.level}`, { fontFamily: 'Galmuri11', fontSize: '12px', color: '#ff9aa8', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
   }
   push(d: any) { this.buf.push({ t: performance.now(), x: d.x, y: d.y, f: d.f, s: d.s, mv: !!d.mv }); if (this.buf.length > 30) this.buf.shift(); if (typeof d.hp === 'number') { this.hp = d.hp; this.maxHp = d.mhp || this.maxHp; } }
