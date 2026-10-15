@@ -33,9 +33,9 @@ export const CHARS: CharDef[] = [
   { id: 'pepper', name: '고추 기사', frame: 16 },
   { id: 'grape', name: '포도', frame: 17 },
   { id: 'mushroom', name: '버섯', frame: 18 },
-  { id: 'carrot', name: '당근 궁수', frame: 19, weapon: false },
+  { id: 'fox', name: '여우 궁수', frame: 19, weapon: false },
 ];
 export const CHAR_BY_ID: Record<string, CharDef> = Object.fromEntries(CHARS.map((c) => [c.id, c]));
 
 // 직업별 기본 캐릭터
-export const CLASS_DEFAULT_CHAR: Record<string, string> = { blade: 'lemon', fist: 'durian', mage: 'witch', ranger: 'carrot', lancer: 'tangerine' };
+export const CLASS_DEFAULT_CHAR: Record<string, string> = { blade: 'lemon', fist: 'durian', mage: 'witch', ranger: 'fox', lancer: 'tangerine' };

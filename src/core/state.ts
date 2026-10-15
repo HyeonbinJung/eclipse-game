@@ -83,6 +83,7 @@ function migrate(s: any): SaveGame {
   s.seenStory ||= []; s.essence ||= [0, 0, 0, 0, 0, 0];
   s.name ||= '모험가'; s.look ||= { frame: CLASSES[s.classId]?.spr.frame ?? 96, tint: 0xffffff };
   if (s.look.char != null && typeof s.look.char !== 'string') delete s.look.char;
+  if (s.look.char === 'carrot') s.look.char = 'fox'; // 19번 칸: 당근 궁수 → 여우 궁수
   return s as SaveGame;
 }
 export function loadSettingsOnly(): Settings | null { const s = peekSave(); return s ? { ...defaultSettings(), ...s.settings } : null; }
