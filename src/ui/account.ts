@@ -1,5 +1,5 @@
 // 계정 · 캐릭터 슬롯 · 캐릭터 생성 · 투기장(PvP) 로비 패널
-import { CLASSES, JOBS } from '../data/classes';
+import { CLASSES, JOBS, BASE_TUNING } from '../data/classes';
 import { CHAPTERS } from '../data/world';
 import { S, newGame, persist, setStorageNs, adoptSave, peekSave, loadGame, clearCurrent } from '../core/state';
 import { computeStats } from '../core/stats';
@@ -119,7 +119,8 @@ export function renderCharCreate(c: Ctx) {
      <div class="jtitle"><b class="gold">${esc(cl.name)}</b> <span class="dim small">${esc(cl.en)}</span></div>
      <div class="crole">${BASE_LABEL[cl.base]} 계열 · ${esc(cl.role)}</div>
      <div class="cdesc">${esc(cl.desc)}</div>
-     <div class="dim small">성향: ${modTags(cl)}${sig ? ` · 시그니처: ${sig}` : ''}<br>무기: ${esc(cl.weaponNoun)} · 자원: ${esc(cl.resName)}</div>
+     <div class="small" style="color:var(--cyan)">${BASE_LABEL[cl.base]} 계열: ${BASE_TUNING[cl.base].label}</div>
+     <div class="dim small">직업 성향: ${modTags(cl)}${sig ? ` · 시그니처: ${sig}` : ''}<br>무기: ${esc(cl.weaponNoun)} · 자원: ${esc(cl.resName)}</div>
      <label class="nm">이름<input id="f-name" maxlength="12" value="${esc(o.name || '')}" placeholder="캐릭터 이름"></label></div>
    <div class="cc-r"><div class="jobs">${rows}</div>
      <div class="qbox"><span class="dim">L</span> ${cl.L.map((m) => esc(m.name)).join(' → ')} · <span class="dim">H</span> ${esc(cl.H.name)}<br><span class="dim">Q</span> ${esc(cl.Q.name)} · <span class="dim">E</span> ${esc(cl.E.name)} · <span class="dim">R</span> ${esc(cl.R.name)}</div>

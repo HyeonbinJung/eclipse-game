@@ -2,6 +2,7 @@
 import { atkBase, defBase, hpBase, strAt, vitAt, R } from '../data/formulas';
 import { itemMain, Item, Slot } from '../data/items';
 import { S, findItem, hasTrait, cls } from './state';
+import { BASE_TUNING } from '../data/classes';
 
 export interface Stats {
   maxHp: number; atk: number; def: number; crit: number; critDmg: number; atkSpd: number; cdr: number;
@@ -29,6 +30,8 @@ export function computeStats(override?: { slot: Slot; item: Item | null }): Stat
     if (it.unique) st.uniques.add(it.unique);
     if (it.relicId) st.relics.add(it.relicId);
   }
+  const bt = BASE_TUNING[cls()?.base ?? 'blade']; // 계열 밸런스
+  st.maxHp *= bt.hp; st.def *= bt.def; st.dr += bt.dr;
   const md = cls()?.mods; // 직업 스탯 성향
   if (md) { st.maxHp *= md.hp ?? 1; st.atk *= md.atk ?? 1; st.def *= md.def ?? 1; st.crit += md.crit ?? 0; st.atkSpd += md.atkSpd ?? 0; st.move += md.move ?? 0; }
   if (hasTrait('ironbody')) st.maxHp = R(st.maxHp * 1.07);

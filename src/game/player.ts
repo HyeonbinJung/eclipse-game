@@ -1,7 +1,7 @@
 // 플레이어: 입력 버퍼 130ms, 콤보 체인 700ms, 대시 i-frame 70~190ms, 패링 120ms (기획서 3.1 / 4.3)
 import Phaser from 'phaser';
 import { Actor, HitInfo } from './combat';
-import { ClassDef, Move } from '../data/classes';
+import { ClassDef, Move, BASE_TUNING } from '../data/classes';
 import { S, cls, hasTrait, bus } from '../core/state';
 import { computeStats, Stats } from '../core/stats';
 import { calcDamage } from '../data/formulas';
@@ -42,6 +42,7 @@ export class Player extends Actor {
   counterUntil = 0; cds: Record<string, number> = {}; cdDur: Record<string, number> = {};
   iframeFrom = 0; iframeTo = 0; dashVx = 0; dashVy = 0; dashMoveUntil = 0; dodgedThisDash = false;
   parryTo = 0; lastParryAt = -1; superArmor = false; invulnUntil = 0;
+  drainKey = ''; drainHits = 0;
   combo = new ComboMeter(); aim = 0; weapon: Phaser.GameObjects.Image | null = null; body!: Body; swingSide = 1;
   lastHitBy = ''; buffs: Record<string, number> = {}; awarded = new Set<string>(); crownUsed = false; sealUsed = false;
   bleedExtra = 0; freezeExtra = 0; potionBelt = 3; lastCombatAt = -99999; moving = false; stepT = 0;
@@ -279,7 +280,7 @@ export class Player extends Actor {
 
   // 플레이어 → 적 피해 계산 (특성/유물/고유효과 반영)
   outgoing(t: Actor, h: HitInfo) {
-    const n = this.now; let mul = h.dmgMul || 1;
+    const n = this.now; let mul = (h.dmgMul || 1) * BASE_TUNING[this.c.base].dmg;
     if (h.tech?.startsWith('L') && (this.buffs.afterimage || 0) > n) { mul *= 1.25; this.buffs.afterimage = 0; }
     if (this.stats.uniques.has('bossDmg') && t.isBoss) mul *= 1.1;
     if (this.stats.uniques.has('execute') && t.hp < t.maxHp * 0.3) mul *= 1.15;
@@ -300,6 +301,12 @@ export class Player extends Actor {
     if (!this.hitConfirmed) this.hitConfirmed = true;
     if (crit && this.stats.uniques.has('critBurn')) t.applyStatus('burn', this);
     if (h.status === 'burn' && this.stats.relics.has('ember_idol')) this.buffs.ember = n + 3000;
+    // 근접 흡혈: 투사체가 아닌 직접 타격만, 지속 피해 제외. 한 번의 휘두르기당 최대 3명분
+    const drain = BASE_TUNING[this.c.base].drain;
+    if (drain && !h.isProj && !(h as any).dot && dmg > 0) {
+      const key = h.moveId || ''; if (key !== this.drainKey) { this.drainKey = key; this.drainHits = 0; }
+      if (this.drainHits++ < 3) this.heal(this.maxHp * drain, true);
+    }
     if (!h.moveId || this.awarded.has(h.moveId)) return;
     this.awarded.add(h.moveId); if (this.awarded.size > 200) this.awarded.clear();
     const pts: Record<string, number> = { L: 10, H: 17, Q: 22, E: 22, C: 17, R: 10 };
@@ -377,7 +384,7 @@ export class Player extends Actor {
     if (src && this.stats.relics.has('royal_ring')) src.st.defDown = { until: n + 4000, amt: 0.1 };
     this.W.run.parries++;
   }
-  heal(v: number) { const d = Math.round(Math.min(v, this.maxHp - this.hp)); if (d <= 0) return; this.hp += d; this.W.fx.dmgText(this.x, this.y - 40, '+' + d, '#7dff9a'); }
+  heal(v: number, quiet = false) { const d = Math.round(Math.min(v, this.maxHp - this.hp)); if (d <= 0) return; this.hp += d; if (!quiet) this.W.fx.dmgText(this.x, this.y - 40, '+' + d, '#7dff9a'); }
 
   dash() {
     if (!this.cdReady('D')) return;

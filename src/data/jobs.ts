@@ -162,7 +162,7 @@ const SPECS: JobSpec[] = [
     id: 'goldfish', char: 'goldfish', base: 'ranger', name: '금붕어 물총수', en: 'Bubble Gunner', role: '원거리 제어 · 넉백',
     desc: '물방울을 쏘아 적을 밀어내고 느리게 만든다.',
     resName: '수압', color: 0x8fd8ff, weaponNoun: '물총', weapons: ['물총', '버블 건', '어항 대포'], sig: ['slow'],
-    L: ['물방울', '물줄기', '거품탄'], H: { name: '고압 물대포', shape: P('fx_light', 0x8fd8ff, { range: 520, speed: 980, r: 18, pierce: true }), eff: ['knock', 'stagger'] },
+    L: ['물방울', '물줄기', '거품탄'], H: { name: '고압 물대포', shape: P('fx_light', 0x8fd8ff, { range: 460, speed: 980, r: 18, pierce: true }), eff: ['knock', 'stagger'] },
     Q: { name: '어항 폭탄', hits: 3, coef: 0.8, eff: ['slow', 'knock'] },
     E: { name: '지느러미 회피 사격' },
     R: { name: '대해일' },

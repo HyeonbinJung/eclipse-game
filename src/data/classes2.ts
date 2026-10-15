@@ -2,7 +2,7 @@
 import { SP } from './sprites';
 import type { ClassDef, Shape } from './classes';
 
-const ARROW = (r = 9, tint = 0xffe6b0): Shape => ({ t: 'proj', range: 400, speed: 780, r, tex: 'fx_trace', tint });
+const ARROW = (r = 9, tint = 0xffe6b0): Shape => ({ t: 'proj', range: 340, speed: 780, r, tex: 'fx_trace', tint });
 
 export const RANGER: ClassDef = {
   id: 'ranger', base: 'ranger', name: '궁수', en: 'Shadow Ranger', role: '원거리 기동 · 카이팅',
@@ -11,9 +11,9 @@ export const RANGER: ClassDef = {
   L: [
     { id: 'r_l1', name: '속사', coef: 0.7, dur: 0.3, act: 0.35, shape: ARROW(), poise: 4, fx: 'magic', sfx: 'swing2', ult: 2 },
     { id: 'r_l2', name: '연사', coef: 0.75, dur: 0.3, act: 0.35, shape: ARROW(), poise: 4, fx: 'magic', sfx: 'swing2', ult: 2 },
-    { id: 'r_l3', name: '꿰뚫기', coef: 0.95, dur: 0.4, act: 0.4, shape: { t: 'proj', range: 400, speed: 780, r: 11, tex: 'fx_trace', tint: 0xfff0a0, pierce: true }, poise: 7, fx: 'magic', sfx: 'swing1', eff: ['stagger'], ult: 3 },
+    { id: 'r_l3', name: '꿰뚫기', coef: 0.95, dur: 0.4, act: 0.4, shape: { t: 'proj', range: 340, speed: 780, r: 11, tex: 'fx_trace', tint: 0xfff0a0, pierce: true }, poise: 7, fx: 'magic', sfx: 'swing1', eff: ['stagger'], ult: 3 },
   ],
-  H: { id: 'r_h', name: '관통 화살', coef: 1.8, dur: 0.7, act: 0.5, charge: 0.3, shape: { t: 'proj', range: 540, speed: 1050, r: 15, pierce: true, tex: 'fx_trace', tint: 0xfff07a }, poise: 16, fx: 'magic', sfx: 'draw', eff: ['stagger'], ult: 3.5 },
+  H: { id: 'r_h', name: '관통 화살', coef: 1.8, dur: 0.7, act: 0.5, charge: 0.3, shape: { t: 'proj', range: 460, speed: 1050, r: 15, pierce: true, tex: 'fx_trace', tint: 0xfff07a }, poise: 16, fx: 'magic', sfx: 'draw', eff: ['stagger'], ult: 3.5 },
   Q: { id: 'r_q', name: '화살비', coef: 0.62, hits: 4, interval: 0.18, dur: 0.9, act: 0.25, cd: 8, res: 20, unlock: 4, shape: { t: 'circle', r: 115, at: 'aim', maxDist: 320 }, poise: 6, fx: 'magic', sfx: 'swing2', eff: ['slow'], ult: 1.5, maxTargets: 10 },
   E: { id: 'r_e', name: '후방 도약 사격', coef: 0.58, dur: 0.5, act: 0.3, cd: 10, res: 30, unlock: 8, fan: 5, shape: ARROW(10, 0xb8ffb0), poise: 6, fx: 'magic', sfx: 'dash', eff: ['backstep'], ult: 1 },
   C: { id: 'r_c', name: '반격 사격', coef: 0.6, dur: 0.35, act: 0.25, fan: 3, shape: ARROW(12, 0x9ff8ff), poise: 10, fx: 'magic', sfx: 'swing1', eff: ['stagger'], ult: 3 },

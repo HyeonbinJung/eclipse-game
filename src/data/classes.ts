@@ -19,6 +19,16 @@ export interface TraitOpt { id: string; name: string; desc: string }
 export type BaseId = 'blade' | 'fist' | 'mage' | 'ranger' | 'lancer';
 // 직업별 스탯 성향: hp·atk·def는 배율, crit·atkSpd는 가산, move는 px/s 가산
 export interface StatMods { hp?: number; atk?: number; def?: number; crit?: number; atkSpd?: number; move?: number }
+// 계열 밸런스: 근접은 위험을 감수하는 대가로 더 튼튼하고 강하며 타격 시 체력을 흡수한다.
+// 원거리는 안전한 사거리 대신 체력·방어·피해가 낮다. hp·def·dmg는 배율, dr은 피해감소 가산, drain은 근접 타격당 최대 HP 회복 비율
+export interface BaseTuning { hp: number; def: number; dr: number; dmg: number; drain: number; label: string }
+export const BASE_TUNING: Record<BaseId, BaseTuning> = {
+  fist: { hp: 1.25, def: 1.15, dr: 0.08, dmg: 1.12, drain: 0.006, label: '체력 +25% · 피해감소 +8% · 피해 +12% · 타격 흡혈' },
+  blade: { hp: 1.15, def: 1.15, dr: 0.05, dmg: 1.18, drain: 0.005, label: '체력 +15% · 피해감소 +5% · 피해 +18% · 타격 흡혈' },
+  lancer: { hp: 1.1, def: 1.1, dr: 0.04, dmg: 1.15, drain: 0.004, label: '체력 +10% · 피해감소 +4% · 피해 +15% · 타격 흡혈' },
+  ranger: { hp: 0.85, def: 0.85, dr: 0, dmg: 0.88, drain: 0, label: '체력 −15% · 방어 −15% · 피해 −12%' },
+  mage: { hp: 0.8, def: 0.8, dr: 0, dmg: 0.92, drain: 0, label: '체력 −20% · 방어 −20% · 피해 −8%' },
+};
 export interface ClassDef {
   id: string; base: BaseId; char?: string; weapons?: string[]; mods?: StatMods; sig?: string[]; name: string; en: string; role: string; desc: string;
   spr: Spr; weapon: Spr | null; resName: string; color: number;
