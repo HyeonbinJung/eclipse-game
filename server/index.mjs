@@ -1,6 +1,7 @@
 // ECLIPSE 게임 서버: 정적 파일(dist) + 계정/세이브 REST API + PvP WebSocket
 // 실행: node server/index.mjs  (PORT 환경변수, 기본 4173)
 import http from 'node:http';
+import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -223,4 +224,10 @@ wss.on('connection', (ws, req) => {
 });
 setInterval(() => { for (const ws of wss.clients) { if (!ws.alive) { ws.terminate(); continue; } ws.alive = false; ws.ping(); } }, 15000);
 
-server.listen(PORT, () => console.log(`ECLIPSE 서버 실행 중: http://localhost:${PORT}`));
+// 같은 와이파이의 다른 기기가 접속할 수 있도록 모든 인터페이스에서 대기하고, 접속 주소를 안내한다
+server.listen(PORT, () => { // 호스트 미지정 = IPv4·IPv6 모든 인터페이스
+  const lan = Object.values(os.networkInterfaces()).flat().filter((a) => a && a.family === 'IPv4' && !a.internal).map((a) => a.address);
+  console.log(`ECLIPSE 서버 실행 중\n  이 컴퓨터:      http://localhost:${PORT}`);
+  for (const ip of lan) console.log(`  같은 와이파이:  http://${ip}:${PORT}`);
+  if (!lan.length) console.log('  (네트워크 연결을 찾지 못했습니다 — 와이파이 연결을 확인하세요)');
+});
