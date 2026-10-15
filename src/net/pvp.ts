@@ -1,8 +1,9 @@
 // PvP WebSocket 클라이언트 (빠른 매칭 / 방 코드 / 경기 중계)
 import Phaser from 'phaser';
 import { account } from './api';
+import type { Look } from '../game/look';
 
-export interface Snap { name: string; user?: string; rating?: number; classId: string; look: { frame: number; tint: number }; level: number; atk: number; def: number; maxHp: number }
+export interface Snap { name: string; user?: string; rating?: number; classId: string; look: Look; level: number; atk: number; def: number; maxHp: number }
 export interface Match { id: number; side: 0 | 1; opp: Snap; me: Snap; arena: number; startIn: number; duration: number; receivedAt: number }
 
 class PvpClient extends Phaser.Events.EventEmitter {

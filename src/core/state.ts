@@ -4,6 +4,7 @@ import { CLASSES } from '../data/classes';
 import { xpToNext, MAX_LEVEL, randi, rerollCost, craftCost, R } from '../data/formulas';
 import { Item, makeItem, Slot, SLOTS, ENHANCE, RAR, rarityIndex, rollAffixes, rollRarity, makeRelic, RELIC } from '../data/items';
 import { queueUpload } from '../net/api';
+import type { Look } from '../game/look';
 import { MAIN_QUESTS, SIDE_QUESTS, CHAPTERS, chapterOfLevel } from '../data/world';
 
 export const SCHEMA_VERSION = 1;
@@ -11,7 +12,7 @@ export const bus = new Phaser.Events.EventEmitter();
 
 export interface Settings { sfx: number; bgm: number; shake: boolean; patternName: boolean; photosensitive: boolean; dmgNumbers: boolean; fps30: boolean; hints: boolean }
 export interface SaveGame {
-  schemaVersion: number; accountId?: string; characterId: string; classId: string; name: string; look: { frame: number; tint: number }; level: number; currentXp: number; gold: number;
+  schemaVersion: number; accountId?: string; characterId: string; classId: string; name: string; look: Look; level: number; currentXp: number; gold: number;
   attributes: { str: number; vit: number }; skills: Record<string, number>; traitChoices: Record<string, number>;
   equipmentItemIds: Partial<Record<Slot, string>>; inventoryItems: Item[];
   questStates: { main: number; mainActive: boolean; mainProgress: number; side: { id: string; progress: number } | null; sideDone: string[] };
@@ -25,7 +26,7 @@ export let S: SaveGame = null as any;
 
 export const defaultSettings = (): Settings => ({ sfx: 0.7, bgm: 0.45, shake: true, patternName: true, photosensitive: false, dmgNumbers: true, fps30: false, hints: true });
 
-export function newGame(classId: string, name = '', look?: { frame: number; tint: number }) {
+export function newGame(classId: string, name = '', look?: Look) {
   S = {
     schemaVersion: SCHEMA_VERSION, characterId: 'c-' + Date.now().toString(36), classId, name: name || '모험가', look: look || { frame: CLASSES[classId].spr.frame, tint: 0xffffff }, level: 1, currentXp: 0, gold: 120,
     attributes: { str: 5, vit: 4 }, skills: {}, traitChoices: {}, equipmentItemIds: {}, inventoryItems: [],
@@ -81,6 +82,7 @@ function migrate(s: any): SaveGame {
   s.bossDaily ||= { date: today(), counts: {} };
   s.seenStory ||= []; s.essence ||= [0, 0, 0, 0, 0, 0];
   s.name ||= '모험가'; s.look ||= { frame: CLASSES[s.classId]?.spr.frame ?? 96, tint: 0xffffff };
+  if (s.look.char != null && typeof s.look.char !== 'string') delete s.look.char;
   return s as SaveGame;
 }
 export function loadSettingsOnly(): Settings | null { const s = peekSave(); return s ? { ...defaultSettings(), ...s.settings } : null; }

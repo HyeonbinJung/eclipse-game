@@ -3,18 +3,20 @@ import Phaser from 'phaser';
 import { Actor, HitInfo } from './combat';
 import { CLASSES } from '../data/classes';
 import type { Snap } from '../net/pvp';
+import { resolveBody, Body } from './look';
 import type { World } from '../scenes/World';
 
 export const PVP_HP = 2, PVP_ATK = 0.7;
 
 export class Remote extends Actor {
   buf: { t: number; x: number; y: number; f: number; s: string; mv: boolean }[] = [];
-  weapon: Phaser.GameObjects.Image | null = null; tag: Phaser.GameObjects.Text; st2 = 'idle'; mv = false; cls: string;
+  weapon: Phaser.GameObjects.Image | null = null; tag: Phaser.GameObjects.Text; body: Body; st2 = 'idle'; mv = false; cls: string;
   constructor(W: World, public snap: Snap, x: number, y: number) {
     super(W); this.team = 'enemy'; this.x = x; this.y = y; this.name = snap.name; this.cls = snap.classId;
     this.maxHp = this.hp = Math.round(snap.maxHp * PVP_HP); this.atk = Math.round(snap.atk * PVP_ATK); this.def = snap.def; this.level = snap.level;
-    this.makeSprite('dun', snap.look?.frame ?? CLASSES[snap.classId]?.spr.frame ?? 96, 3, snap.look?.tint ?? 0xffffff); this.r = 14;
-    const c = CLASSES[snap.classId]; if (c?.weapon) this.weapon = W.add.image(x, y, c.weapon.sheet, c.weapon.frame).setScale(2.4).setOrigin(0.5, 0.85);
+    this.body = resolveBody(W, snap.look, snap.classId);
+    this.makeSprite(this.body.tex, this.body.frame, this.body.scale, this.body.tint, this.body.originY); this.r = 14;
+    const c = CLASSES[snap.classId]; if (c?.weapon && this.body.weapon) this.weapon = W.add.image(x, y, c.weapon.sheet, c.weapon.frame).setScale(2.4).setOrigin(0.5, 0.85);
     this.tag = W.add.text(x, y, `${snap.name} Lv${snap.level}`, { fontFamily: 'Galmuri11', fontSize: '12px', color: '#ff9aa8', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
   }
   push(d: any) { this.buf.push({ t: performance.now(), x: d.x, y: d.y, f: d.f, s: d.s, mv: !!d.mv }); if (this.buf.length > 30) this.buf.shift(); if (typeof d.hp === 'number') { this.hp = d.hp; this.maxHp = d.mhp || this.maxHp; } }
@@ -31,16 +33,16 @@ export class Remote extends Actor {
     this.bob = this.mv ? -Math.abs(Math.sin(n / 85)) * 3 : Math.sin(n / 400) * 0.6;
     const flip = Math.cos(this.facing) < 0; this.spr.setFlipX(flip);
     const atk = this.st2 === 'attack' || this.st2 === 'ult';
-    this.spr.setScale(3 * (atk ? 1.1 : this.st2 === 'dash' ? 1.15 : 1), 3 * (atk ? 0.93 : this.st2 === 'dash' ? 0.88 : 1)).setRotation(this.st2 === 'hit' ? 0.25 * (flip ? 1 : -1) : this.mv ? Math.sin(n / 85) * 0.07 : 0);
+    this.spr.setScale(this.baseScale * (atk ? 1.1 : this.st2 === 'dash' ? 1.15 : 1), this.baseScale * (atk ? 0.93 : this.st2 === 'dash' ? 0.88 : 1)).setRotation(this.st2 === 'hit' ? 0.25 * (flip ? 1 : -1) : this.mv ? Math.sin(n / 85) * 0.07 : 0);
     this.spr.setAlpha(this.st2 === 'dash' ? 0.6 : 1);
     if (this.st2 === 'dash' && Math.random() < 0.5) this.W.fx.afterimage(this.spr, 0xff8090);
     this.syncSprite();
     if (this.weapon) {
       const side = flip ? -1 : 1;
       const wa = atk ? this.facing + Math.PI / 2 + Math.sin(n / 40) * 0.6 : side * 0.5;
-      this.weapon.setPosition(this.x + side * 10, this.y - 18 + this.bob).setRotation(wa).setDepth(this.y + 1);
+      this.weapon.setPosition(this.x + side * this.body.hand.x, this.y + this.body.hand.y + this.bob).setRotation(wa).setDepth(this.y + 1);
     }
-    this.tag.setPosition(this.x, this.y - 66).setDepth(this.y + 2);
+    this.tag.setPosition(this.x, this.y - Math.max(66, this.body.height + 8)).setDepth(this.y + 2);
   }
   destroyAll() { this.destroySprite(); this.weapon?.destroy(); this.tag.destroy(); }
 }

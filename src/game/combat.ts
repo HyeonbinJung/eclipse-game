@@ -87,10 +87,11 @@ export abstract class Actor {
 
   knock(ang: number, power: number) { this.kbx = Math.cos(ang) * power; this.kby = Math.sin(ang) * power; }
 
-  makeSprite(tex: string, frame: number, scale: number, tint: number) {
+  makeSprite(tex: string, frame: number, scale: number, tint: number, originY = 0.86) {
     this.baseScale = scale; this.tint = tint;
-    this.shadow = this.W.add.image(this.x, this.y, 'shadow').setAlpha(0.35).setScale(scale / 3 * 0.9, scale / 3 * 0.7);
-    this.spr = this.W.add.image(this.x, this.y, tex, tex.startsWith('fx_') ? undefined : frame).setScale(scale).setOrigin(0.5, 0.86).setTint(tint);
+    this.spr = this.W.add.image(this.x, this.y, tex, tex.startsWith('fx_') ? undefined : frame).setScale(scale).setOrigin(0.5, originY).setTint(tint);
+    const k = (this.spr.width * scale) / 48; // 그림자는 화면상 너비 기준(16px×3 = 48 → 1)
+    this.shadow = this.W.add.image(this.x, this.y, 'shadow').setAlpha(0.35).setScale(k * 0.9, k * 0.7);
     this.r = 6 * scale;
   }
   syncSprite() {

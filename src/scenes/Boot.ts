@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { SFX_KEYS } from '../audio/audio';
+import { CHAR_SHEET, CHAR_SRC, CHAR_W, CHAR_H } from '../data/chars';
 
 export const FX_KEYS = ['slash_02:fx_slash', 'spark_01:fx_spark', 'star_04:fx_star', 'circle_05:fx_circle', 'smoke_04:fx_smoke', 'flame_03:fx_flame', 'magic_03:fx_magic', 'twirl_01:fx_twirl', 'light_01:fx_light', 'scorch_01:fx_scorch', 'trace_01:fx_trace', 'symbol_02:fx_symbol'];
 
@@ -10,6 +11,7 @@ export class Boot extends Phaser.Scene {
     this.load.on('progress', (p: number) => { bar.clear(); bar.fillStyle(0x222838).fillRect(w / 2 - 200, h / 2, 400, 10); bar.fillStyle(0xffa040).fillRect(w / 2 - 200, h / 2, 400 * p, 10); });
     this.load.spritesheet('dun', 'assets/img/dungeon.png', { frameWidth: 16, frameHeight: 16 });
     this.load.spritesheet('town', 'assets/img/town.png', { frameWidth: 16, frameHeight: 16 });
+    this.load.spritesheet(CHAR_SHEET, CHAR_SRC, { frameWidth: CHAR_W, frameHeight: CHAR_H }); // 없으면 기존 의상으로 대체
     for (const k of FX_KEYS) { const [f, key] = k.split(':'); this.load.image(key, `assets/fx/${f}.png`); }
     for (const k of SFX_KEYS) this.load.audio(k, `assets/sfx/${k}.ogg`);
   }

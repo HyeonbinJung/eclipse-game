@@ -8,6 +8,7 @@ import { calcDamage } from '../data/formulas';
 import { WShape } from './shapes';
 import { sfx } from '../audio/audio';
 import type { World } from '../scenes/World';
+import { resolveBody, Body } from './look';
 
 export type Act = 'L' | 'H' | 'D' | 'F' | 'Q' | 'E' | 'R' | 'POT';
 export interface InputState { mx: number; my: number; aimX: number; aimY: number; pressed: Act[] }
@@ -38,7 +39,7 @@ export class Player extends Actor {
   counterUntil = 0; cds: Record<string, number> = {}; cdDur: Record<string, number> = {};
   iframeFrom = 0; iframeTo = 0; dashVx = 0; dashVy = 0; dashMoveUntil = 0; dodgedThisDash = false;
   parryTo = 0; lastParryAt = -1; superArmor = false; invulnUntil = 0;
-  combo = new ComboMeter(); aim = 0; weapon: Phaser.GameObjects.Image | null = null;
+  combo = new ComboMeter(); aim = 0; weapon: Phaser.GameObjects.Image | null = null; body!: Body;
   lastHitBy = ''; buffs: Record<string, number> = {}; awarded = new Set<string>(); crownUsed = false; sealUsed = false;
   bleedExtra = 0; freezeExtra = 0; potionBelt = 3; lastCombatAt = -99999; moving = false; stepT = 0;
   seenAt: Record<string, number> = {}; weaponPush = 0; hpMul = 1;
@@ -47,8 +48,9 @@ export class Player extends Actor {
 
   constructor(W: World, x: number, y: number) {
     super(W); this.team = 'player'; this.x = x; this.y = y; this.c = cls();
-    this.makeSprite('dun', S.look?.frame ?? this.c.spr.frame, 3, S.look?.tint ?? 0xffffff); this.r = 14;
-    if (this.c.weapon) this.weapon = W.add.image(x, y, 'dun', this.c.weapon.frame).setScale(2.4).setOrigin(0.5, 0.85);
+    this.body = resolveBody(W, S.look, this.c.id);
+    this.makeSprite(this.body.tex, this.body.frame, this.body.scale, this.body.tint, this.body.originY); this.r = 14;
+    if (this.c.weapon && this.body.weapon) this.weapon = W.add.image(x, y, 'dun', this.c.weapon.frame).setScale(2.4).setOrigin(0.5, 0.85);
     this.refreshStats(true); this.mp = this.stats.mpMax; this.name = S.name || '플레이어';
     this.bleedExtra = hasTrait('redmoon') ? 1000 : 0; this.freezeExtra = hasTrait('deepfreeze') ? 300 : 0;
   }
@@ -425,7 +427,7 @@ export class Player extends Actor {
     if (this.state === 'parry') { sx = 0.92; sy = 1.08; }
     if (this.state === 'parryFail') rot = (flip ? 1 : -1) * 0.15;
     if (this.state === 'hit') rot = (flip ? 1 : -1) * 0.25;
-    this.spr.setRotation(rot).setScale(3 * sx, 3 * sy);
+    this.spr.setRotation(rot).setScale(this.baseScale * sx, this.baseScale * sy);
     if (this.state === 'parry' || this.counterUntil > n) this.spr.setAlpha(1);
     if (n < this.iframeTo && n >= this.iframeFrom) this.spr.setAlpha(0.55); else this.spr.setAlpha(1);
     if (this.weapon) {
@@ -439,7 +441,7 @@ export class Player extends Actor {
       } else if (this.state === 'parry') wa = this.facing + Math.PI / 2 - 0.2;
       else wa = side * 0.5 + (this.moving ? Math.sin(n / 85) * 0.15 : 0);
       if (this.state !== 'attack' && this.state !== 'ult') this.weaponPush = 0;
-      const hx = this.x + side * 10 + this.offX + Math.cos(this.facing) * this.weaponPush, hy = this.y - 18 + this.bob + this.offY + Math.sin(this.facing) * this.weaponPush;
+      const hx = this.x + side * this.body.hand.x + this.offX + Math.cos(this.facing) * this.weaponPush, hy = this.y + this.body.hand.y + this.bob + this.offY + Math.sin(this.facing) * this.weaponPush;
       this.weapon.setPosition(hx, hy).setRotation(wa).setDepth(this.y + (Math.sin(this.facing) > 0.3 ? 1 : -1)).setFlipX(false);
     }
   }

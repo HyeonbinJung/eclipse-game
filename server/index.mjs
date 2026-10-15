@@ -146,7 +146,7 @@ function clampSnap(s, user) {
   const atkB = 18 + 2.1 * (lv - 1) + 0.045 * (lv - 1) ** 2, hpB = 120 + 18 * (lv - 1) + 0.28 * (lv - 1) ** 2, defB = 4 + 0.95 * lv;
   return {
     name: String(s.name || user.username).slice(0, 16), user: user.username, rating: user.rating, classId: String(s.classId || 'blade').slice(0, 10),
-    look: { frame: (s.look?.frame | 0) % 132, tint: (s.look?.tint >>> 0) & 0xffffff }, level: lv,
+    look: { frame: (s.look?.frame | 0) % 132, tint: (s.look?.tint >>> 0) & 0xffffff, ...(typeof s.look?.char === 'string' ? { char: s.look.char.replace(/[^a-z0-9_]/g, '').slice(0, 24) } : {}) }, level: lv,
     atk: Math.min(Math.max(1, s.atk | 0), Math.round(atkB * 2.6 + 40)), def: Math.min(Math.max(0, s.def | 0), Math.round(defB * 2.6 + 60)), maxHp: Math.min(Math.max(50, s.maxHp | 0), Math.round(hpB * 2.2 + 300)),
   };
 }

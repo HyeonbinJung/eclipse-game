@@ -1,5 +1,7 @@
 // HUD (기획서 12장): 좌상 HP/자원, 하단 Q/E/R, 우상 미니맵, 좌측 콤보 랭크, 상단 보스 HP·Poise·페이즈
 import Phaser from 'phaser';
+import { resolveBody } from '../game/look';
+import { CHAR_W, CHAR_H } from '../data/chars';
 import type { World } from './World';
 import { S, mainQuest, cls } from '../core/state';
 import { xpToNext } from '../data/formulas';
@@ -10,7 +12,7 @@ const F = 'Galmuri11';
 
 export class Hud extends Phaser.Scene {
   g!: Phaser.GameObjects.Graphics; t: Record<string, Phaser.GameObjects.Text> = {}; icons: Phaser.GameObjects.Image[] = [];
-  portrait!: Phaser.GameObjects.Image; arrow!: Phaser.GameObjects.Image; vignette!: Phaser.GameObjects.Image;
+  portrait!: Phaser.GameObjects.Image; portraitKey = ''; arrow!: Phaser.GameObjects.Image; vignette!: Phaser.GameObjects.Image;
   constructor() { super('Hud'); }
   txt(k: string, x: number, y: number, size = 13, color = '#fff', origin = 0) {
     this.t[k] = this.add.text(x, y, '', { fontFamily: F, fontSize: size + 'px', color, stroke: '#000', strokeThickness: 3 }).setOrigin(origin, origin === 0.5 ? 0.5 : 0); return this.t[k];
@@ -38,7 +40,12 @@ export class Hud extends Phaser.Scene {
     for (const k in this.t) if (k !== 'help') this.t[k].setText('');
     if (!W || !S) return;
     const P = W.player; const c = cls(); const n = W.now;
-    this.portrait.setFrame(S.look?.frame ?? c.spr.frame).setTint(S.look?.tint ?? 0xffffff);
+    const b = resolveBody(W, S.look, c.id); const pk = b.tex + b.frame;
+    if (this.portraitKey !== pk) {
+      this.portraitKey = pk; this.portrait.setTexture(b.tex, b.frame).setTint(b.tint);
+      if (b.tex === 'dun') this.portrait.setCrop().setOrigin(0.5).setScale(3);
+      else this.portrait.setCrop(0, 0, CHAR_W, 32).setOrigin(0.5, 16 / CHAR_H).setScale(48 / 32);
+    }
     // ── 좌상 HP/자원 ──
     g.fillStyle(0x0b0f1c, 0.75).fillRoundedRect(8, 8, 290, 125, 8); g.lineStyle(1, 0x3a4060, 1).strokeRoundedRect(8, 8, 290, 125, 8);
     const bar = (x: number, y: number, w: number, h: number, f: number, col: number, bg = 0x241a22) => { g.fillStyle(bg, 1).fillRect(x, y, w, h); g.fillStyle(col, 1).fillRect(x, y, w * Phaser.Math.Clamp(f, 0, 1), h); g.lineStyle(1, 0x000000, 0.8).strokeRect(x, y, w, h); };

@@ -5,18 +5,40 @@ import { S, newGame, persist, setStorageNs, adoptSave, peekSave, loadGame, clear
 import { computeStats } from '../core/stats';
 import { account, online, login, register, logout, listChars, getChar, deleteChar, leaderboard, flush, me, CharSummary } from '../net/api';
 import { pvp } from '../net/pvp';
+import { CHARS, CHAR_BY_ID, CHAR_SHEET, CHAR_SRC, CHAR_W, CHAR_H, CLASS_DEFAULT_CHAR, CharDef } from '../data/chars';
 
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
 // 스프라이트 프레임 + 색상(곱셈 틴트)을 data URL로 그려 미리보기에 사용
-let sheet: HTMLImageElement | null = null; const cache = new Map<string, string>();
-function loadSheet(cb: () => void) { if (sheet?.complete) return; sheet = new Image(); sheet.src = 'assets/img/dungeon.png'; sheet.onload = cb; }
-export function spriteURL(frame: number, tint = 0xffffff, scale = 6, rerender?: () => void) {
-  const key = `${frame}-${tint}-${scale}`; if (cache.has(key)) return cache.get(key)!;
-  if (!sheet || !sheet.complete) { loadSheet(() => rerender?.()); return ''; }
-  const c = document.createElement('canvas'); c.width = c.height = 16 * scale; const x = c.getContext('2d')!; x.imageSmoothingEnabled = false;
-  x.drawImage(sheet, (frame % 12) * 16, Math.floor(frame / 12) * 16, 16, 16, 0, 0, 16 * scale, 16 * scale);
+type Sheet = { src: string; fw: number; fh: number; img?: HTMLImageElement; state: 'idle' | 'loading' | 'ok' | 'fail'; waiters: (() => void)[] };
+const SHEETS: Record<string, Sheet> = {
+  dun: { src: 'assets/img/dungeon.png', fw: 16, fh: 16, state: 'idle', waiters: [] },
+  [CHAR_SHEET]: { src: CHAR_SRC, fw: CHAR_W, fh: CHAR_H, state: 'idle', waiters: [] },
+};
+const cache = new Map<string, string>();
+function sheetImg(key: string, rerender?: () => void): HTMLImageElement | null {
+  const sh = SHEETS[key]; if (sh.state === 'ok') return sh.img!; if (sh.state === 'fail') return null;
+  if (rerender && !sh.waiters.includes(rerender)) sh.waiters.push(rerender);
+  if (sh.state === 'idle') {
+    sh.state = 'loading'; const im = new Image();
+    const done = (ok: boolean) => { sh.state = ok ? 'ok' : 'fail'; sh.img = im; const w = sh.waiters; sh.waiters = []; w.forEach((f) => f()); };
+    im.onload = () => done(true); im.onerror = () => done(false); im.src = sh.src;
+  }
+  return null;
+}
+// chars 시트가 로드됐다면 실제로 들어 있는 캐릭터만 반환(아직 로딩 중이거나 없으면 빈 배열 → 기존 의상 사용)
+export function availableChars(rerender?: () => void): CharDef[] {
+  const im = sheetImg(CHAR_SHEET, rerender); if (!im) return [];
+  const n = Math.floor(im.naturalWidth / CHAR_W) * Math.floor(im.naturalHeight / CHAR_H);
+  return CHARS.filter((d) => d.frame < n);
+}
+export function spriteURL(frame: number, tint = 0xffffff, scale = 6, rerender?: () => void, sheetKey = 'dun') {
+  const key = `${sheetKey}-${frame}-${tint}-${scale}`; if (cache.has(key)) return cache.get(key)!;
+  const sheet = sheetImg(sheetKey, rerender); if (!sheet) return '';
+  const { fw, fh } = SHEETS[sheetKey]; const cols = Math.max(1, Math.floor(sheet.naturalWidth / fw));
+  const c = document.createElement('canvas'); c.width = fw * scale; c.height = fh * scale; const x = c.getContext('2d')!; x.imageSmoothingEnabled = false;
+  x.drawImage(sheet, (frame % cols) * fw, Math.floor(frame / cols) * fh, fw, fh, 0, 0, fw * scale, fh * scale);
   if (tint !== 0xffffff) {
     const d = x.getImageData(0, 0, c.width, c.height); const r = (tint >> 16) & 255, g = (tint >> 8) & 255, b = tint & 255;
     for (let i = 0; i < d.data.length; i += 4) { d.data[i] = (d.data[i] * r) / 255; d.data[i + 1] = (d.data[i + 1] * g) / 255; d.data[i + 2] = (d.data[i + 2] * b) / 255; }
@@ -24,7 +46,16 @@ export function spriteURL(frame: number, tint = 0xffffff, scale = 6, rerender?: 
   }
   const url = c.toDataURL(); cache.set(key, url); return url;
 }
-const sprImg = (frame: number, tint: number, size: number, rr?: () => void) => { const u = spriteURL(frame, tint, 6, rr); return u ? `<img class="pix" src="${u}" style="width:${size}px;height:${size}px">` : `<span style="display:inline-block;width:${size}px;height:${size}px"></span>`; };
+// size = 표시 높이. 너비는 시트 프레임 비율을 따른다
+const sprImg = (frame: number, tint: number, size: number, rr?: () => void, sheetKey = 'dun') => {
+  const { fw, fh } = SHEETS[sheetKey]; const w = Math.round((size * fw) / fh); const u = spriteURL(frame, tint, Math.max(1, Math.ceil(size / fh)), rr, sheetKey);
+  return u ? `<img class="pix" src="${u}" style="width:${w}px;height:${size}px">` : `<span style="display:inline-block;width:${w}px;height:${size}px"></span>`;
+};
+// 직업 기본 외형 미리보기: 커스텀 캐릭터가 있으면 그것, 없으면 기존 프레임
+const classImg = (classId: string, size: number, rr: () => void) => {
+  const d = CHAR_BY_ID[CLASS_DEFAULT_CHAR[classId]];
+  return d && availableChars(rr).includes(d) ? sprImg(d.frame, 0xffffff, size, rr, CHAR_SHEET) : sprImg(CLASSES[classId]?.spr.frame ?? 96, 0xffffff, size, rr);
+};
 
 export interface Ctx { opts: any; render: () => void; open: (n: string, o?: any) => void; close: (force?: boolean) => void; toast: (m: string, c?: string, ms?: number) => void; startWorld: (d: any) => void; pwaButton: () => string }
 
@@ -60,7 +91,7 @@ export function renderCharSelect(c: Ctx) {
     const ch: CharSummary | undefined = o.chars.find((x: CharSummary) => x.slot === i);
     if (!ch) return `<div class="slotcard empty" data-a="newChar:${i}"><div class="plus">＋</div><div>새 캐릭터</div></div>`;
     const cl = CLASSES[ch.classId];
-    return `<div class="slotcard"><div class="sprw">${sprImg(cl?.spr.frame ?? 96, 0xffffff, 72, c.render)}</div><div class="cname">${esc(ch.name)}</div><div class="dim">${cl?.name || ch.classId} · Lv ${ch.level}</div>
+    return `<div class="slotcard"><div class="sprw">${classImg(ch.classId, 72, c.render)}</div><div class="cname">${esc(ch.name)}</div><div class="dim">${cl?.name || ch.classId} · Lv ${ch.level}</div>
       <div class="dim small">${new Date(ch.updatedAt).toLocaleString()}</div><div class="row"><button class="primary" data-a="playChar:${i}">플레이</button><button class="danger" data-a="delChar:${i}">삭제</button></div></div>`;
   }).join('');
   return `<h2>캐릭터 선택 <span class="dim small">${esc(account.user?.username)}</span><button class="x" data-a="open:title">✕</button></h2>${o.err ? `<div class="warn">${esc(o.err)}</div>` : ''}<div class="slots">${slots}</div>`;
@@ -68,14 +99,19 @@ export function renderCharSelect(c: Ctx) {
 
 export function renderCharCreate(c: Ctx) {
   const o = c.opts; o.cls ||= 'blade'; o.outfit ??= CLASSES[o.cls].spr.frame; o.tint ??= 0xffffff;
-  const cl = CLASSES[o.cls];
-  const cards = CLASS_LIST.map((k) => `<div class="ccard mini ${o.cls === k.id ? 'on' : ''}" data-a="ccClass:${k.id}"><div class="cbig sm">${sprImg(k.spr.frame, 0xffffff, 48, c.render)}</div><div class="cname">${k.name}<span>${k.en}</span></div><div class="crole">${k.role}</div></div>`).join('');
-  const outfits = OUTFITS.map((f) => `<div class="opick ${o.outfit === f ? 'on' : ''}" data-a="ccOutfit:${f}">${sprImg(f, o.tint, 40, c.render)}</div>`).join('');
+  const cl = CLASSES[o.cls]; const chars = availableChars(c.render);
+  // 커스텀 캐릭터 시트가 있으면 캐릭터 선택(틴트 없음), 없으면 기존 의상 + 색상
+  if (chars.length && !chars.some((d) => d.id === o.char)) o.char = chars.find((d) => d.id === CLASS_DEFAULT_CHAR[o.cls])?.id ?? chars[0].id;
+  const cur = chars.length ? CHAR_BY_ID[o.char] : null;
+  const cards = CLASS_LIST.map((k) => `<div class="ccard mini ${o.cls === k.id ? 'on' : ''}" data-a="ccClass:${k.id}"><div class="cbig sm">${classImg(k.id, 48, c.render)}</div><div class="cname">${k.name}<span>${k.en}</span></div><div class="crole">${k.role}</div></div>`).join('');
+  const outfits = cur
+    ? chars.map((d) => `<div class="opick ${o.char === d.id ? 'on' : ''}" data-a="ccChar:${d.id}" title="${esc(d.name)}">${sprImg(d.frame, 0xffffff, 44, c.render, CHAR_SHEET)}</div>`).join('')
+    : OUTFITS.map((f) => `<div class="opick ${o.outfit === f ? 'on' : ''}" data-a="ccOutfit:${f}">${sprImg(f, o.tint, 40, c.render)}</div>`).join('');
   const tints = TINTS.map((t) => `<div class="tpick ${o.tint === t ? 'on' : ''}" style="background:${hex(t)}" data-a="ccTint:${t}"></div>`).join('');
   return `<h2>캐릭터 만들기 ${o.slot >= 0 ? `<span class="dim small">슬롯 ${o.slot + 1}</span>` : '<span class="dim small">게스트 (이 브라우저에만 저장)</span>'}<button class="x" data-a="${o.slot >= 0 ? 'open:charSelect' : 'open:title'}">✕</button></h2>
-   <div class="cc"><div class="cc-l"><div class="preview">${sprImg(o.outfit, o.tint, 144, c.render)}</div>
+   <div class="cc"><div class="cc-l"><div class="preview">${cur ? sprImg(cur.frame, 0xffffff, 150, c.render, CHAR_SHEET) : sprImg(o.outfit, o.tint, 144, c.render)}</div>
      <label class="nm">이름<input id="f-name" maxlength="12" value="${esc(o.name || '')}" placeholder="캐릭터 이름"></label>
-     <div class="sub2">의상</div><div class="outfits">${outfits}</div><div class="sub2">색상</div><div class="tints">${tints}</div></div>
+     <div class="sub2">${cur ? `캐릭터 <span class="dim small">${esc(cur.name)}</span>` : '의상'}</div><div class="outfits">${outfits}</div>${cur ? '' : `<div class="sub2">색상</div><div class="tints">${tints}</div>`}</div>
    <div class="cc-r"><div class="classes small">${cards}</div>
      <div class="qbox"><b class="gold">${cl.name}</b> — ${cl.desc}<br><span class="dim">Q ${cl.Q.name} · E ${cl.E.name} · R ${cl.R.name} · 자원: ${cl.resName}</span></div>
      ${o.slot < 0 && peekSaveGuest() ? '<div class="warn">게스트 새 게임은 기존 게스트 저장 데이터를 덮어씁니다.</div>' : ''}
@@ -152,14 +188,16 @@ export async function accountAction(cmd: string, p1: string, c: Ctx): Promise<bo
     }
     case 'guestContinue': setStorageNs('eclipse_save_'); account.slot = -1; if (loadGame()) c.startWorld({ mode: 'town', ch: S.chapter || 1 }); return true;
     case 'guestNew': c.open('charCreate', { slot: -1 }); return true;
-    case 'ccClass': o.name = val('f-name'); if (o.outfit === CLASSES[o.cls].spr.frame) o.outfit = CLASSES[p1].spr.frame; o.cls = p1; c.render(); return true;
+    case 'ccClass': o.name = val('f-name'); if (o.outfit === CLASSES[o.cls].spr.frame) o.outfit = CLASSES[p1].spr.frame; if (o.char === CLASS_DEFAULT_CHAR[o.cls]) o.char = CLASS_DEFAULT_CHAR[p1]; o.cls = p1; c.render(); return true;
+    case 'ccChar': o.name = val('f-name'); o.char = p1; c.render(); return true;
     case 'ccOutfit': o.name = val('f-name'); o.outfit = +p1; c.render(); return true;
     case 'ccTint': o.name = val('f-name'); o.tint = +p1; c.render(); return true;
     case 'ccCreate': {
       const name = val('f-name').trim() || CLASSES[o.cls].name;
       if (o.slot >= 0) { account.slot = o.slot; setStorageNs(`eclipse_u${account.user!.id}_s${o.slot}_`); for (const k of ['a', 'b', 'slot']) localStorage.removeItem(`eclipse_u${account.user!.id}_s${o.slot}_${k}`); }
       else { account.slot = -1; setStorageNs('eclipse_save_'); }
-      newGame(o.cls, name, { frame: o.outfit, tint: o.tint }); await flush();
+      const useChar = availableChars().some((d) => d.id === o.char);
+      newGame(o.cls, name, useChar ? { frame: o.outfit, tint: 0xffffff, char: o.char } : { frame: o.outfit, tint: o.tint }); await flush();
       c.startWorld({ mode: 'town', ch: 1 }); return true;
     }
     case 'pvpQueue': case 'pvpRoom': case 'pvpJoin': {
