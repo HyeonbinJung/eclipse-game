@@ -193,4 +193,4 @@ For each listed cell:
 - [ ] unique color count ≤ the sheet's limit
 - [ ] monster height matches its size class (S 18–28, M 30–44, L 50–62)
 - [ ] at least one outline-dark pixel (luminance < 60) on the silhouette border
-- [ ] no "noise": fewer than 3% of opaque pixels are isolated (a pixel whose 4 neighbors are all different colors from it)
+- [ ] no "noise": isolated-pixel ratio ≤ 12% (an opaque pixel whose 4 neighbors all differ from it by RGB distance > 30); print it per cell
