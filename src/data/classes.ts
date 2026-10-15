@@ -16,8 +16,11 @@ export interface Move {
 }
 export interface ComboDef { name: string; total: number; eff: string[]; desc: string }
 export interface TraitOpt { id: string; name: string; desc: string }
+export type BaseId = 'blade' | 'fist' | 'mage' | 'ranger' | 'lancer';
+// 직업별 스탯 성향: hp·atk·def는 배율, crit·atkSpd는 가산, move는 px/s 가산
+export interface StatMods { hp?: number; atk?: number; def?: number; crit?: number; atkSpd?: number; move?: number }
 export interface ClassDef {
-  id: 'blade' | 'fist' | 'mage' | 'ranger' | 'lancer'; name: string; en: string; role: string; desc: string;
+  id: string; base: BaseId; char?: string; weapons?: string[]; mods?: StatMods; sig?: string[]; name: string; en: string; role: string; desc: string;
   spr: Spr; weapon: Spr | null; resName: string; color: number;
   L: Move[]; H: Move; Q: Move; E: Move; C: Move; R: Move;
   combos: Record<string, ComboDef>; traits: { lv: number; opts: [TraitOpt, TraitOpt] }[];
@@ -25,7 +28,7 @@ export interface ClassDef {
 }
 
 const BLADE: ClassDef = {
-  id: 'blade', name: '검사', en: 'Blade Dancer', role: '근접 균형형 · 패링 장려',
+  id: 'blade', base: 'blade', name: '검사', en: 'Blade Dancer', role: '근접 균형형 · 패링 장려',
   desc: '균형 잡힌 근접 전투. 패링 후 반격의 칼날이 가장 강력하다.',
   spr: SP.knight, weapon: SP.sword, resName: '검기', color: 0x7fd8ff, parryPoise: 30, weaponNoun: '검',
   L: [
@@ -54,7 +57,7 @@ const BLADE: ClassDef = {
 };
 
 const FIST: ClassDef = {
-  id: 'fist', name: '격투가', en: 'Iron Fist', role: '근접 고속 · 누적 그로기 우위',
+  id: 'fist', base: 'fist', name: '격투가', en: 'Iron Fist', role: '근접 고속 · 누적 그로기 우위',
   desc: '빠른 연타로 그로기를 쌓는다. 피격 허용도가 가장 높다.',
   spr: SP.monk, weapon: null, resName: '투기', color: 0xffb35c, parryPoise: 40, weaponNoun: '건틀릿',
   L: [
@@ -83,7 +86,7 @@ const FIST: ClassDef = {
 };
 
 const MAGE: ClassDef = {
-  id: 'mage', name: '마법사', en: 'Arcane Weaver', role: '중거리 원소 연계 · 범위 제압',
+  id: 'mage', base: 'mage', name: '마법사', en: 'Arcane Weaver', role: '중거리 원소 연계 · 범위 제압',
   desc: '중거리에서 투사체와 원소 연계로 다수를 제압한다. 체력이 가장 낮다.',
   spr: SP.wizard, weapon: SP.staff, resName: 'MP', color: 0xb98cff, parryPoise: 30, weaponNoun: '지팡이',
   L: [
@@ -113,5 +116,11 @@ const MAGE: ClassDef = {
 
 import { RANGER, LANCER } from './classes2';
 export { OUTFITS, TINTS } from './classes2';
-export const CLASSES: Record<string, ClassDef> = { blade: BLADE, fist: FIST, mage: MAGE, ranger: RANGER, lancer: LANCER };
-export const CLASS_LIST = [BLADE, FIST, MAGE, RANGER, LANCER];
+import { buildJobs } from './jobs';
+// 기본 계열 5종: 전투 로직의 뼈대. 새 캐릭터는 만들 수 없고 기존 세이브 호환용으로만 남는다
+export const BASE_CLASSES: Record<BaseId, ClassDef> = { blade: BLADE, fist: FIST, mage: MAGE, ranger: RANGER, lancer: LANCER };
+// 캐릭터 고유 직업 20종 (캐릭터 생성 화면에 나오는 목록)
+export const JOBS = buildJobs(BASE_CLASSES);
+export const CLASSES: Record<string, ClassDef> = { ...BASE_CLASSES, ...Object.fromEntries(JOBS.map((j) => [j.id, j])) };
+export const CLASS_LIST = JOBS;
+export const baseOf = (classId?: string): BaseId => CLASSES[classId || '']?.base ?? 'blade';

@@ -77,7 +77,7 @@ export class Player extends Actor {
     this.tickStatus(dt);
     this.combo.update(dt, now);
     // 자원 회복 (마법사 MP: 비전투 6/s, 전투 3/s)
-    if (this.c.id === 'mage') this.mp = Math.min(this.stats.mpMax, this.mp + (this.inCombat ? 3 : 6) * this.stats.mpRegen * dt);
+    if (this.c.base === 'mage') this.mp = Math.min(this.stats.mpMax, this.mp + (this.inCombat ? 3 : 6) * this.stats.mpRegen * dt);
     else if (!this.inCombat) this.res += (50 - this.res) * Math.min(1, dt * 0.5);
     // 예약 실행
     if (this.pending.length) {
@@ -132,7 +132,7 @@ export class Player extends Actor {
       const m = a === 'Q' ? c.Q : c.E;
       if (!this.unlocked(m)) return this.W.hint(`${m.name}은(는) Lv${m.unlock}에 해금됩니다`);
       if (!this.cdReady(a)) return;
-      if (c.id === 'mage') { const cost = (m.mp || 0) * this.stats.mpCost; if (this.mp < cost) return this.W.hint('MP 부족'); this.mp -= cost; }
+      if (c.base === 'mage') { const cost = (m.mp || 0) * this.stats.mpCost; if (this.mp < cost) return this.W.hint('MP 부족'); this.mp -= cost; }
       else { if (this.res < (m.res || 0)) return this.W.hint(`${c.resName} 부족`); this.res -= m.res || 0; }
       this.setCd(a, m.cd!); this.startMove(m, { tech: a }); return;
     }
@@ -149,10 +149,10 @@ export class Player extends Actor {
       let ls = 0; for (let i = this.chain.length - 1; i >= 0 && this.chain[i] === 'L'; i--) ls++;
       if (ls >= 3 || this.chain.length >= 3) { this.chain = []; this.chainCoefs = []; ls = 0; }
       const m = c.L[ls]; this.chain.push('L'); this.chainCoefs.push(m.coef);
-      if (c.id === 'mage') this.mp = Math.max(0, this.mp - (m.mp || 0) * this.stats.mpCost); // MP 0이어도 L은 막히지 않음
+      if (c.base === 'mage') this.mp = Math.max(0, this.mp - (m.mp || 0) * this.stats.mpCost); // MP 0이어도 L은 막히지 않음
       const key = this.chain.join('');
       let mul = 1;
-      if (ls === 2 && c.id === 'fist' && hasTrait('chain')) mul *= 1.15;
+      if (ls === 2 && c.base === 'fist' && hasTrait('chain')) mul *= 1.15;
       if (key === 'LLL') {
         if (this.stats.relics.has('ash_seal')) mul *= 1.12;
         this.startMove(m, { tech: 'L' + ls, combo: c.combos.LLL, mul });
@@ -161,7 +161,7 @@ export class Player extends Actor {
       return;
     }
     if (a === 'H') {
-      if (c.id === 'mage') { const cost = (c.H.mp || 0) * this.stats.mpCost; this.mp = Math.max(0, this.mp - cost); }
+      if (c.base === 'mage') { const cost = (c.H.mp || 0) * this.stats.mpCost; this.mp = Math.max(0, this.mp - cost); }
       this.chain.push('H');
       const key = this.chain.slice(-3).join('');
       const cd = this.chain.length >= 3 ? c.combos[key] : undefined;
@@ -207,14 +207,14 @@ export class Player extends Actor {
   execMove(m: Move, coef: number, o: { tech: string; combo?: { eff: string[] }; poiseAdd?: number }, idx: number) {
     const sh = m.shape; const f = this.facing; const key = 'k' + KEY++;
     const eff = [...(m.eff || []), ...(o.combo?.eff || [])];
-    const status = eff.includes('burn') ? 'burn' : eff.includes('chill') ? 'chill' : eff.includes('bleed') ? 'bleed' : undefined;
+    const status = eff.includes('burn') ? 'burn' : eff.includes('chill') ? 'chill' : eff.includes('bleed') ? 'bleed' : eff.includes('poison') ? 'poison' : eff.includes('slow') ? 'slow' : undefined;
     let poise = m.poise + (o.poiseAdd || 0) + (eff.includes('poise45') ? 45 : 0) + (eff.includes('poise60') ? 60 : 0);
     if (this.stats.relics.has('steel_heart')) poise *= 1.15;
     const info: Omit<HitInfo, 'src'> = {
       coef, poise, eff, status, kb: eff.includes('knock') ? 380 : eff.includes('pull') ? -260 : 90, moveId: key, tech: o.tech, ult: m.ult ?? 1.2,
       pen: (m.pen || 0) + (o.tech === 'H' && hasTrait('shatter') ? 0.1 : 0), critBonus: eff.includes('critUp') ? 0.15 : 0,
     };
-    if (o.tech === 'Q' && this.c.id === 'fist' && hasTrait('bind')) info.dmgMul = 1.2;
+    if (o.tech === 'Q' && this.c.base === 'fist' && hasTrait('bind')) info.dmgMul = 1.2;
     if (eff.includes('backstep')) this.knock(this.facing + Math.PI, 700);
     if (eff.includes('mp10')) this.mp = Math.min(this.stats.mpMax, this.mp + 10);
     const tint = this.c.color;
@@ -230,15 +230,15 @@ export class Player extends Actor {
         const len = sh.len * (o.tech.startsWith('L') && hasTrait('reach') ? 1.15 : 1);
         const shape: WShape = { k: 'rect', x: this.x, y: this.y - 10, a: f, len, w: sh.w };
         this.W.combat.strike(this, shape, info, 90, m.maxTargets || 6);
-        if (this.c.id === 'fist') { this.W.fx.burst(this.x + Math.cos(f) * sh.len * 0.6, this.y - 12 + Math.sin(f) * sh.len * 0.6, tint, sh.w, 'fx_twirl'); this.W.fx.shake(80, 0.003); }
-        else if (this.c.id === 'lancer') { this.W.fx.sprite('fx_trace', this.x + Math.cos(f) * len * 0.5, this.y - 12 + Math.sin(f) * len * 0.5, { tint, rot: f, scale: len / 110, dur: 160 }); }
+        if (this.c.base === 'fist') { this.W.fx.burst(this.x + Math.cos(f) * sh.len * 0.6, this.y - 12 + Math.sin(f) * sh.len * 0.6, tint, sh.w, 'fx_twirl'); this.W.fx.shake(80, 0.003); }
+        else if (this.c.base === 'lancer') { this.W.fx.sprite('fx_trace', this.x + Math.cos(f) * len * 0.5, this.y - 12 + Math.sin(f) * len * 0.5, { tint, rot: f, scale: len / 110, dur: 160 }); }
         else this.W.fx.slash(this.x, this.y - 14, f, sh.len, tint, true);
         break;
       }
       case 'circle': {
         let cx = this.x, cy = this.y - 6;
         if (sh.at === 'aim') { const p = this.W.aimPoint(); const d = Math.min(sh.maxDist || 200, Math.hypot(p.x - this.x, p.y - this.y)); cx = this.x + Math.cos(this.aim) * d; cy = this.y + Math.sin(this.aim) * d; }
-        let r = sh.r; if (this.c.id === 'mage' && o.tech === 'Q' && hasTrait('spread')) r *= 1.12;
+        let r = sh.r; if (this.c.base === 'mage' && o.tech === 'Q' && hasTrait('spread')) r *= 1.12;
         if (o.tech === 'E' && hasTrait('dragon')) r *= 1.2;
         if (eff.includes('leap')) {
           // 낙창: 조준 지점으로 도약 후 착지 타격
@@ -249,8 +249,8 @@ export class Player extends Actor {
           break;
         }
         this.W.combat.strike(this, { k: 'circle', x: cx, y: cy, r }, info, 90, m.maxTargets || 8);
-        if (this.c.id === 'mage') { this.W.fx.burst(cx, cy, tint, r, 'fx_magic'); this.W.fx.sparks(cx, cy, tint, 6, r); }
-        else if (this.c.id === 'ranger') { for (let k = 0; k < 4; k++) this.W.fx.sprite('fx_trace', cx + (Math.random() - 0.5) * r, cy + (Math.random() - 0.5) * r - 30, { tint, rot: Math.PI / 2, scale: 0.4, dur: 220, dy: 30 }); }
+        if (this.c.base === 'mage') { this.W.fx.burst(cx, cy, tint, r, 'fx_magic'); this.W.fx.sparks(cx, cy, tint, 6, r); }
+        else if (this.c.base === 'ranger') { for (let k = 0; k < 4; k++) this.W.fx.sprite('fx_trace', cx + (Math.random() - 0.5) * r, cy + (Math.random() - 0.5) * r - 30, { tint, rot: Math.PI / 2, scale: 0.4, dur: 220, dy: 30 }); }
         else if (m.fx === 'slashBig') { this.W.fx.slash(cx, cy, Math.random() * 6.28, r, tint, true); }
         else this.W.fx.burst(cx, cy, tint, r, 'fx_twirl');
         if (o.tech === 'R') this.W.fx.shake(60, 0.004);
@@ -269,8 +269,8 @@ export class Player extends Actor {
           onEnd: explode ? (p) => { this.W.combat.strike(this, { k: 'circle', x: p.x, y: p.y, r: explode }, { ...info, moveId: key + 'x', noNet: true }, 80, 8); this.W.fx.burst(p.x, p.y, 0xff8a3a, explode, 'fx_flame'); this.W.fx.sparks(p.x, p.y, 0xffc070, 8, explode); sfx('slam', 0.5); } : undefined,
         }); }
         const ang = ang0;
-        if (this.c.id === 'mage') this.W.fx.sprite('fx_light', this.x + Math.cos(ang) * 22, this.y - 16 + Math.sin(ang) * 22, { tint: sh.tint, scale: 0.2, endScale: 0.4, dur: 140 });
-        else if (this.c.id === 'ranger') this.W.fx.sprite('fx_spark', this.x + Math.cos(ang) * 24, this.y - 16 + Math.sin(ang) * 24, { tint, scale: 0.15, dur: 120 });
+        if (this.c.base === 'mage') this.W.fx.sprite('fx_light', this.x + Math.cos(ang) * 22, this.y - 16 + Math.sin(ang) * 22, { tint: sh.tint, scale: 0.2, endScale: 0.4, dur: 140 });
+        else if (this.c.base === 'ranger') this.W.fx.sprite('fx_spark', this.x + Math.cos(ang) * 24, this.y - 16 + Math.sin(ang) * 24, { tint, scale: 0.15, dur: 120 });
         else this.W.fx.slash(this.x, this.y - 14, ang, 70, tint, true);
         break;
       }
@@ -288,7 +288,7 @@ export class Player extends Actor {
     if (this.stats.relics.has('glacier_eye') && chilled) mul *= 1.08;
     if (hasTrait('hunter') && chilled) mul *= 1.12;
     if (this.stats.relics.has('void_revelation') && (this.buffs.revelation || 0) > n && /^[QER]/.test(h.tech || '')) mul *= 1.1;
-    if (this.c.id === 'mage' && (chilled || (t.st.burn && t.st.burn.until > n))) mul *= hasTrait('resonance') ? 1.22 : 1.1;
+    if (this.c.base === 'mage' && (chilled || (t.st.burn && t.st.burn.until > n))) mul *= hasTrait('resonance') ? 1.22 : 1.1;
     let crit = this.stats.crit + (h.critBonus || 0);
     if (this.stats.relics.has('crimson_shard') && 'AS'.includes(this.combo.rank())) crit += 0.05;
     return calcDamage(this.atk, h.coef * mul, t.def * t.defMul(), { pen: Math.min(0.4, this.stats.pen + (h.pen || 0)), crit: Math.min(0.5, crit), critDmg: this.stats.critDmg });
@@ -306,7 +306,7 @@ export class Player extends Actor {
     const tech = h.tech || 'L';
     this.combo.add(pts[tech[0]] ?? 10, tech, n, 1 + this.stats.comboGain);
     this.gainUlt(h.ult ?? 2);
-    if (this.c.id !== 'mage') this.res = Math.min(100, this.res + (tech[0] === 'L' ? 5 : 9));
+    if (this.c.base !== 'mage') this.res = Math.min(100, this.res + (tech[0] === 'L' ? 5 : 9));
   }
   gainUlt(v: number) { if (S.level < 20) return; this.ult = Math.min(100, this.ult + v * (1 + this.combo.ultBonus()) * (1 + this.stats.ultGain)); }
 
@@ -463,9 +463,9 @@ export class Player extends Actor {
       const fwd = this.facing + Math.PI / 2; // 이 회전값이면 칼끝이 조준 방향을 향함
       let wa = idle; this.weaponPush = 0;
       if (ph) {
-        if (this.c.id === 'mage') { const k = ph.k === 'wind' ? -0.4 * E.Quadratic.Out(ph.t) : ph.k === 'strike' ? -0.4 + 0.9 * E.Cubic.Out(ph.t) : 0.5 * (1 - ph.t); wa = fwd - 0.6 + k; }
-        else if (this.c.id === 'ranger') wa = this.facing + Math.PI / 4;
-        else if (this.c.id === 'lancer') { // 당겼다가 찌르고 회수
+        if (this.c.base === 'mage') { const k = ph.k === 'wind' ? -0.4 * E.Quadratic.Out(ph.t) : ph.k === 'strike' ? -0.4 + 0.9 * E.Cubic.Out(ph.t) : 0.5 * (1 - ph.t); wa = fwd - 0.6 + k; }
+        else if (this.c.base === 'ranger') wa = this.facing + Math.PI / 4;
+        else if (this.c.base === 'lancer') { // 당겼다가 찌르고 회수
           wa = fwd; this.weaponPush = ph.k === 'wind' ? -8 * E.Quadratic.Out(ph.t) : ph.k === 'strike' ? -8 + 34 * E.Cubic.Out(ph.t) : 26 * (1 - E.Quadratic.InOut(ph.t));
         } else { // 검·도끼류: 콤보마다 방향을 바꿔 크게 베고, 끝나면 대기 자세로 천천히 돌아온다
           const big = this.curMove!.id.endsWith('_l3') || this.curMove!.id.endsWith('_h') || this.state === 'ult';

@@ -1,5 +1,5 @@
 // 계정 · 캐릭터 슬롯 · 캐릭터 생성 · 투기장(PvP) 로비 패널
-import { CLASS_LIST, CLASSES, OUTFITS, TINTS } from '../data/classes';
+import { CLASSES, JOBS } from '../data/classes';
 import { CHAPTERS } from '../data/world';
 import { S, newGame, persist, setStorageNs, adoptSave, peekSave, loadGame, clearCurrent } from '../core/state';
 import { computeStats } from '../core/stats';
@@ -53,7 +53,7 @@ const sprImg = (frame: number, tint: number, size: number, rr?: () => void, shee
 };
 // 직업 기본 외형 미리보기: 커스텀 캐릭터가 있으면 그것, 없으면 기존 프레임
 const classImg = (classId: string, size: number, rr: () => void) => {
-  const d = CHAR_BY_ID[CLASS_DEFAULT_CHAR[classId]];
+  const d = CHAR_BY_ID[CLASSES[classId]?.char ?? CLASS_DEFAULT_CHAR[classId]];
   return d && availableChars(rr).includes(d) ? sprImg(d.frame, 0xffffff, size, rr, CHAR_SHEET) : sprImg(CLASSES[classId]?.spr.frame ?? 96, 0xffffff, size, rr);
 };
 
@@ -97,26 +97,36 @@ export function renderCharSelect(c: Ctx) {
   return `<h2>캐릭터 선택 <span class="dim small">${esc(account.user?.username)}</span><button class="x" data-a="open:title">✕</button></h2>${o.err ? `<div class="warn">${esc(o.err)}</div>` : ''}<div class="slots">${slots}</div>`;
 }
 
+const BASE_LABEL: Record<string, string> = { blade: '검', fist: '격투', mage: '마법', ranger: '궁수', lancer: '창' };
+// 직업 성향을 짧은 태그로: 체력 +10% · 공속 +6% 등
+const modTags = (cl: any) => {
+  const m = cl.mods || {}; const t: string[] = [];
+  const pct = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
+  if (m.hp && m.hp !== 1) t.push(`체력 ${pct(m.hp - 1)}`); if (m.atk && m.atk !== 1) t.push(`공격 ${pct(m.atk - 1)}`); if (m.def && m.def !== 1) t.push(`방어 ${pct(m.def - 1)}`);
+  if (m.crit) t.push(`치명 ${pct(m.crit)}`); if (m.atkSpd) t.push(`공속 ${pct(m.atkSpd)}`); if (m.move) t.push(`이동 ${m.move > 0 ? '+' : ''}${m.move}`);
+  return t.length ? t.join(' · ') : '균형형';
+};
+
 export function renderCharCreate(c: Ctx) {
-  const o = c.opts; o.cls ||= 'blade'; o.outfit ??= CLASSES[o.cls].spr.frame; o.tint ??= 0xffffff;
-  const cl = CLASSES[o.cls]; const chars = availableChars(c.render);
-  // 커스텀 캐릭터 시트가 있으면 캐릭터 선택(틴트 없음), 없으면 기존 의상 + 색상
-  if (chars.length && !chars.some((d) => d.id === o.char)) o.char = chars.find((d) => d.id === CLASS_DEFAULT_CHAR[o.cls])?.id ?? chars[0].id;
-  const cur = chars.length ? CHAR_BY_ID[o.char] : null;
-  const cards = CLASS_LIST.map((k) => `<div class="ccard mini ${o.cls === k.id ? 'on' : ''}" data-a="ccClass:${k.id}"><div class="cbig sm">${classImg(k.id, 48, c.render)}</div><div class="cname">${k.name}<span>${k.en}</span></div><div class="crole">${k.role}</div></div>`).join('');
-  const outfits = cur
-    ? chars.map((d) => `<div class="opick ${o.char === d.id ? 'on' : ''}" data-a="ccChar:${d.id}" title="${esc(d.name)}">${sprImg(d.frame, 0xffffff, 44, c.render, CHAR_SHEET)}</div>`).join('')
-    : OUTFITS.map((f) => `<div class="opick ${o.outfit === f ? 'on' : ''}" data-a="ccOutfit:${f}">${sprImg(f, o.tint, 40, c.render)}</div>`).join('');
-  const tints = TINTS.map((t) => `<div class="tpick ${o.tint === t ? 'on' : ''}" style="background:${hex(t)}" data-a="ccTint:${t}"></div>`).join('');
+  const o = c.opts; if (!CLASSES[o.cls] || !JOBS.includes(CLASSES[o.cls])) o.cls = JOBS[0].id;
+  const cl = CLASSES[o.cls];
+  // 직업 = 캐릭터. 계열별로 한 줄씩(검·격투·마법·궁수·창)
+  const rows = (Object.keys(BASE_LABEL) as string[]).map((b) => `<div class="jrow"><div class="jbase">${BASE_LABEL[b]}</div>${JOBS.filter((j) => j.base === b).map((j) =>
+    `<div class="jcard ${o.cls === j.id ? 'on' : ''}" data-a="ccClass:${j.id}" title="${esc(j.name)}"><div class="jimg">${classImg(j.id, 52, c.render)}</div><div class="jname">${esc(j.name)}</div></div>`).join('')}</div>`).join('');
+  const sig = (cl.sig || []).map((e) => EFF_LABEL[e]).filter(Boolean).join(' · ');
   return `<h2>캐릭터 만들기 ${o.slot >= 0 ? `<span class="dim small">슬롯 ${o.slot + 1}</span>` : '<span class="dim small">게스트 (이 브라우저에만 저장)</span>'}<button class="x" data-a="${o.slot >= 0 ? 'open:charSelect' : 'open:title'}">✕</button></h2>
-   <div class="cc"><div class="cc-l"><div class="preview">${cur ? sprImg(cur.frame, 0xffffff, 150, c.render, CHAR_SHEET) : sprImg(o.outfit, o.tint, 144, c.render)}</div>
-     <label class="nm">이름<input id="f-name" maxlength="12" value="${esc(o.name || '')}" placeholder="캐릭터 이름"></label>
-     <div class="sub2">${cur ? `캐릭터 <span class="dim small">${esc(cur.name)}</span>` : '의상'}</div><div class="outfits">${outfits}</div>${cur ? '' : `<div class="sub2">색상</div><div class="tints">${tints}</div>`}</div>
-   <div class="cc-r"><div class="classes small">${cards}</div>
-     <div class="qbox"><b class="gold">${cl.name}</b> — ${cl.desc}<br><span class="dim">Q ${cl.Q.name} · E ${cl.E.name} · R ${cl.R.name} · 자원: ${cl.resName}</span></div>
+   <div class="cc"><div class="cc-l"><div class="preview">${classImg(cl.id, 150, c.render)}</div>
+     <div class="jtitle"><b class="gold">${esc(cl.name)}</b> <span class="dim small">${esc(cl.en)}</span></div>
+     <div class="crole">${BASE_LABEL[cl.base]} 계열 · ${esc(cl.role)}</div>
+     <div class="cdesc">${esc(cl.desc)}</div>
+     <div class="dim small">성향: ${modTags(cl)}${sig ? ` · 시그니처: ${sig}` : ''}<br>무기: ${esc(cl.weaponNoun)} · 자원: ${esc(cl.resName)}</div>
+     <label class="nm">이름<input id="f-name" maxlength="12" value="${esc(o.name || '')}" placeholder="캐릭터 이름"></label></div>
+   <div class="cc-r"><div class="jobs">${rows}</div>
+     <div class="qbox"><span class="dim">L</span> ${cl.L.map((m) => esc(m.name)).join(' → ')} · <span class="dim">H</span> ${esc(cl.H.name)}<br><span class="dim">Q</span> ${esc(cl.Q.name)} · <span class="dim">E</span> ${esc(cl.E.name)} · <span class="dim">R</span> ${esc(cl.R.name)}</div>
      ${o.slot < 0 && peekSaveGuest() ? '<div class="warn">게스트 새 게임은 기존 게스트 저장 데이터를 덮어씁니다.</div>' : ''}
      <button class="primary big" data-a="ccCreate">모험 시작</button></div></div>`;
 }
+const EFF_LABEL: Record<string, string> = { bleed: '출혈', burn: '화상', chill: '빙결', poison: '독', slow: '둔화', knock: '넉백', defDown: '방어 약화', critUp: '치명', stagger: '경직' };
 
 export function renderArena(c: Ctx) {
   const o = c.opts; const u = account.user;
@@ -188,16 +198,13 @@ export async function accountAction(cmd: string, p1: string, c: Ctx): Promise<bo
     }
     case 'guestContinue': setStorageNs('eclipse_save_'); account.slot = -1; if (loadGame()) c.startWorld({ mode: 'town', ch: S.chapter || 1 }); return true;
     case 'guestNew': c.open('charCreate', { slot: -1 }); return true;
-    case 'ccClass': o.name = val('f-name'); if (o.outfit === CLASSES[o.cls].spr.frame) o.outfit = CLASSES[p1].spr.frame; if (o.char === CLASS_DEFAULT_CHAR[o.cls]) o.char = CLASS_DEFAULT_CHAR[p1]; o.cls = p1; c.render(); return true;
-    case 'ccChar': o.name = val('f-name'); o.char = p1; c.render(); return true;
-    case 'ccOutfit': o.name = val('f-name'); o.outfit = +p1; c.render(); return true;
-    case 'ccTint': o.name = val('f-name'); o.tint = +p1; c.render(); return true;
+    case 'ccClass': o.name = val('f-name'); o.cls = p1; c.render(); return true;
     case 'ccCreate': {
       const name = val('f-name').trim() || CLASSES[o.cls].name;
       if (o.slot >= 0) { account.slot = o.slot; setStorageNs(`eclipse_u${account.user!.id}_s${o.slot}_`); for (const k of ['a', 'b', 'slot']) localStorage.removeItem(`eclipse_u${account.user!.id}_s${o.slot}_${k}`); }
       else { account.slot = -1; setStorageNs('eclipse_save_'); }
-      const useChar = availableChars().some((d) => d.id === o.char);
-      newGame(o.cls, name, useChar ? { frame: o.outfit, tint: 0xffffff, char: o.char } : { frame: o.outfit, tint: o.tint }); await flush();
+      const job = CLASSES[o.cls];
+      newGame(o.cls, name, { frame: job.spr.frame, tint: 0xffffff, char: job.char }); await flush();
       c.startWorld({ mode: 'town', ch: 1 }); return true;
     }
     case 'pvpQueue': case 'pvpRoom': case 'pvpJoin': {

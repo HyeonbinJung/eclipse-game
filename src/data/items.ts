@@ -1,5 +1,6 @@
 // 기획서 6장 — 장비 등급·수치·옵션·강화·유물
 import { SP, Spr } from './sprites';
+import { CLASSES, baseOf } from './classes';
 import { R, rand, randi, pick } from './formulas';
 
 export type Slot = 'weapon' | 'armor' | 'gloves' | 'boots' | 'ring1' | 'ring2' | 'necklace' | 'relic';
@@ -96,7 +97,7 @@ const WEAPON_NAMES: Record<string, string[]> = { blade: ['장검', '세검', '�
 
 export function slotIcon(slot: Slot, cls?: string): Spr {
   switch (slot) {
-    case 'weapon': return cls === 'mage' ? SP.staff : cls === 'fist' ? SP.hammer : cls === 'ranger' ? SP.bow : cls === 'lancer' ? SP.spear : SP.sword;
+    case 'weapon': { const b = baseOf(cls); return b === 'mage' ? SP.staff : b === 'fist' ? SP.hammer : b === 'ranger' ? SP.bow : b === 'lancer' ? SP.spear : SP.sword; }
     case 'armor': return SP.shield;
     case 'gloves': return SP.shieldR;
     case 'boots': return SP.sack;
@@ -136,7 +137,7 @@ export function rollRarity(minIdx = 0, allowMyth = false) {
 export function makeItem(slot: Slot, il: number, rarity: string, cls?: string): Item {
   il = Math.max(1, Math.min(50, il));
   const r = RAR[rarity]; const ch = Math.min(5, Math.ceil(il / 10));
-  const names = slot === 'weapon' ? WEAPON_NAMES[cls || 'blade'] : BASE_NAMES[slot];
+  const names = slot === 'weapon' ? CLASSES[cls || '']?.weapons ?? WEAPON_NAMES[baseOf(cls)] : BASE_NAMES[slot];
   const it: Item = { uuid: newUuid(), slot, itemLevel: il, rarity, name: `${CH_PREFIX[ch - 1]} ${pick(names)}`, cls: slot === 'weapon' ? cls : undefined, rolledAffixes: [], upgradeLevel: 0, bound: true };
   rollAffixes(it, r.opts);
   if (r.unique) it.unique = pick(Object.keys(UNIQUES));

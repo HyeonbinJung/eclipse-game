@@ -152,3 +152,12 @@ label.nm { display: flex; flex-direction: column; gap: 4px; font-size: 12px; col
 button.big { width: 100%; padding: 12px; font-size: 16px; margin-top: 8px; }
 .code { font-size: 22px; letter-spacing: 4px; color: var(--gold); }
 .spin { display: inline-block; animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+
+/* 캐릭터 = 직업 선택 */
+.jobs { display: flex; flex-direction: column; gap: 6px; }
+.jrow { display: flex; gap: 6px; align-items: stretch; }
+.jbase { width: 34px; display: grid; place-items: center; color: var(--dim); font-size: 12px; background: #0d1226; border-radius: 6px; }
+.jcard { flex: 1; background: #0d1226; border: 1px solid #2e3558; border-radius: 6px; cursor: pointer; padding: 4px 2px; text-align: center; }
+.jcard:hover { border-color: var(--accent); } .jcard.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); background: #2a2410; }
+.jimg { height: 54px; display: grid; place-items: center; } .jname { font-size: 11px; color: #e8e0c8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jtitle { font-size: 18px; margin: 8px 0 2px; }

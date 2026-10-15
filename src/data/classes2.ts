@@ -5,7 +5,7 @@ import type { ClassDef, Shape } from './classes';
 const ARROW = (r = 9, tint = 0xffe6b0): Shape => ({ t: 'proj', range: 400, speed: 780, r, tex: 'fx_trace', tint });
 
 export const RANGER: ClassDef = {
-  id: 'ranger', name: '궁수', en: 'Shadow Ranger', role: '원거리 기동 · 카이팅',
+  id: 'ranger', base: 'ranger', name: '궁수', en: 'Shadow Ranger', role: '원거리 기동 · 카이팅',
   desc: '멀리서 화살을 퍼붓고 도약으로 거리를 벌린다. 근접 압박에 약하다.',
   spr: SP.ranger, weapon: SP.bow, resName: '집중', color: 0xa8ff9a, parryPoise: 28, weaponNoun: '활',
   L: [
@@ -34,7 +34,7 @@ export const RANGER: ClassDef = {
 };
 
 export const LANCER: ClassDef = {
-  id: 'lancer', name: '창술사', en: 'Dragon Lancer', role: '중거리 관통 · 돌진',
+  id: 'lancer', base: 'lancer', name: '창술사', en: 'Dragon Lancer', role: '중거리 관통 · 돌진',
   desc: '긴 사거리의 찌르기와 돌진으로 전장을 가른다. 낙창으로 단숨에 거리를 좁힌다.',
   spr: SP.soldier, weapon: SP.spear, resName: '기백', color: 0xffd76a, parryPoise: 34, weaponNoun: '창',
   L: [

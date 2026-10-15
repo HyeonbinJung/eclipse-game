@@ -1,6 +1,6 @@
 // 저장 스키마(기획서 13.4) + 성장/인벤토리/퀘스트 진행
 import Phaser from 'phaser';
-import { CLASSES } from '../data/classes';
+import { CLASSES, baseOf } from '../data/classes';
 import { xpToNext, MAX_LEVEL, randi, rerollCost, craftCost, R } from '../data/formulas';
 import { Item, makeItem, Slot, SLOTS, ENHANCE, RAR, rarityIndex, rollAffixes, rollRarity, makeRelic, RELIC } from '../data/items';
 import { queueUpload } from '../net/api';
@@ -118,7 +118,7 @@ export function equipItem(it: Item, slot?: Slot) {
   if (it.slot === 'ring1' || it.slot === 'ring2') target = slot || (slotOpen('ring2') && equipped('ring1') && !equipped('ring2') ? 'ring2' : it.slot === 'ring2' && slotOpen('ring2') ? 'ring2' : 'ring1');
   if (!slotOpen(target)) return `${SLOTS.find((s) => s.id === target)!.name} 슬롯은 Lv${SLOTS.find((s) => s.id === target)!.open}에 개방됩니다.`;
   if (it.relicId && S.level < RELIC[it.relicId].lv) return `권장 레벨 ${RELIC[it.relicId].lv} 이상에서 장착할 수 있습니다.`;
-  if (it.slot === 'weapon' && it.cls && it.cls !== S.classId) return '다른 직업의 무기입니다.';
+  if (it.slot === 'weapon' && it.cls && baseOf(it.cls) !== baseOf(S.classId)) return `${cls().weaponNoun} 계열 무기만 장착할 수 있습니다.`;
   for (const k of Object.keys(S.equipmentItemIds) as Slot[]) if (S.equipmentItemIds[k] === it.uuid) delete S.equipmentItemIds[k];
   S.equipmentItemIds[target] = it.uuid;
   bus.emit('stats'); persist(); return null;

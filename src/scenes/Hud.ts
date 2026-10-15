@@ -51,8 +51,8 @@ export class Hud extends Phaser.Scene {
     const bar = (x: number, y: number, w: number, h: number, f: number, col: number, bg = 0x241a22) => { g.fillStyle(bg, 1).fillRect(x, y, w, h); g.fillStyle(col, 1).fillRect(x, y, w * Phaser.Math.Clamp(f, 0, 1), h); g.lineStyle(1, 0x000000, 0.8).strokeRect(x, y, w, h); };
     bar(84, 16, 204, 18, P.hp / P.maxHp, P.hp / P.maxHp < 0.3 ? 0xff3040 : 0xe0454a);
     this.t.hp.setText(`${Math.ceil(P.hp)} / ${P.maxHp}`);
-    const resF = c.id === 'mage' ? P.mp / P.stats.mpMax : P.res / 100;
-    bar(84, 40, 204, 12, resF, c.id === 'mage' ? 0x5a8cff : 0xffa040); this.t.res.setText(`${c.resName} ${Math.floor(c.id === 'mage' ? P.mp : P.res)}`);
+    const resF = c.base === 'mage' ? P.mp / P.stats.mpMax : P.res / 100;
+    bar(84, 40, 204, 12, resF, c.base === 'mage' ? 0x5a8cff : 0xffa040); this.t.res.setText(`${c.resName} ${Math.floor(c.base === 'mage' ? P.mp : P.res)}`);
     if (S.level >= 20) { bar(84, 58, 204, 10, P.ult / 100, P.ult >= 100 ? 0xfff070 : 0xd0a020); this.t.ult.setText(P.ult >= 100 ? '궁극기 준비! [R]' : `궁극기 ${Math.floor(P.ult)}%`); }
     const xpF = S.level >= 50 ? 1 : S.currentXp / xpToNext(S.level); bar(18, 84, 270, 4, xpF, 0x6ab0ff, 0x1a2030);
     this.t.lv.setText(`Lv ${S.level}  ${S.name || ''}`).setPosition(18, 68);

@@ -1,7 +1,7 @@
 // 최종 스탯 계산 (기획서 3.2 상한 포함)
 import { atkBase, defBase, hpBase, strAt, vitAt, R } from '../data/formulas';
 import { itemMain, Item, Slot } from '../data/items';
-import { S, findItem, hasTrait } from './state';
+import { S, findItem, hasTrait, cls } from './state';
 
 export interface Stats {
   maxHp: number; atk: number; def: number; crit: number; critDmg: number; atkSpd: number; cdr: number;
@@ -29,6 +29,8 @@ export function computeStats(override?: { slot: Slot; item: Item | null }): Stat
     if (it.unique) st.uniques.add(it.unique);
     if (it.relicId) st.relics.add(it.relicId);
   }
+  const md = cls()?.mods; // 직업 스탯 성향
+  if (md) { st.maxHp *= md.hp ?? 1; st.atk *= md.atk ?? 1; st.def *= md.def ?? 1; st.crit += md.crit ?? 0; st.atkSpd += md.atkSpd ?? 0; st.move += md.move ?? 0; }
   if (hasTrait('ironbody')) st.maxHp = R(st.maxHp * 1.07);
   if (hasTrait('spirit')) st.ultGain += 0.08;
   if (hasTrait('focus')) st.mpRegen *= 1.15;
