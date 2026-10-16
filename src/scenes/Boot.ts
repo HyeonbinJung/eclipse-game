@@ -3,6 +3,7 @@ import { SFX_KEYS } from '../audio/audio';
 import { CHAR_SHEET, CHAR_SRC, CHAR_W, CHAR_H } from '../data/chars';
 import { MON_SHEET, MON_SRC, MON_CELL } from '../data/monsters';
 import { BOSS_SHEET, BOSS_SRC, BOSS_CELL } from '../data/bosses';
+import { TERRAIN_KEY, TERRAIN_SRC, TERRAIN_PX, PROPS_KEY, PROPS_SRC, PROPS_W, PROPS_H } from '../game/terrain';
 
 export const FX_KEYS = ['slash_02:fx_slash', 'spark_01:fx_spark', 'star_04:fx_star', 'circle_05:fx_circle', 'smoke_04:fx_smoke', 'flame_03:fx_flame', 'magic_03:fx_magic', 'twirl_01:fx_twirl', 'light_01:fx_light', 'scorch_01:fx_scorch', 'trace_01:fx_trace', 'symbol_02:fx_symbol'];
 
@@ -16,6 +17,8 @@ export class Boot extends Phaser.Scene {
     this.load.spritesheet(CHAR_SHEET, CHAR_SRC, { frameWidth: CHAR_W, frameHeight: CHAR_H }); // 없으면 기존 의상으로 대체
     this.load.spritesheet(MON_SHEET, MON_SRC, { frameWidth: MON_CELL, frameHeight: MON_CELL });
     this.load.spritesheet(BOSS_SHEET, BOSS_SRC, { frameWidth: BOSS_CELL, frameHeight: BOSS_CELL }); // 없으면 기존 스프라이트로 대체
+    this.load.spritesheet(TERRAIN_KEY, TERRAIN_SRC, { frameWidth: TERRAIN_PX, frameHeight: TERRAIN_PX }); // 없으면 Kenney 타일로 대체
+    this.load.spritesheet(PROPS_KEY, PROPS_SRC, { frameWidth: PROPS_W, frameHeight: PROPS_H }); // 없으면 Kenney 소품으로 대체
     for (const k of FX_KEYS) { const [f, key] = k.split(':'); this.load.image(key, `assets/fx/${f}.png`); }
     for (const k of SFX_KEYS) this.load.audio(k, `assets/sfx/${k}.ogg`);
   }

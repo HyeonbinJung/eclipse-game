@@ -7,6 +7,10 @@ import { UI } from './ui/ui';
 import { initAudio, music } from './audio/audio';
 import { registerSW, applyUpdate } from './pwa';
 import { me } from './net/api';
+import { playIntro } from './ui/intro';
+
+// 시작 인트로(Software by Extriver) — 그동안 게임은 뒤에서 로딩된다
+playIntro();
 
 const fps30 = localStorage.getItem('eclipse_fps30') === '1';
 

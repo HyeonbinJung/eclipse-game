@@ -5,6 +5,7 @@ export interface Theme {
   liquid: 'water' | 'lava' | 'ice' | 'void' | 'moat'; solid: 'trees' | 'wall' | 'rock';
   groundSheet: 'dun' | 'town'; ground: number[]; groundTint: number; wallFrame: number; wallSheet: 'dun' | 'town'; wallTint: number;
   props: { spr: Spr; tint: number; solid: boolean; scale?: number; w: number }[]; bg: number; ambient: number; fog: number;
+  row: number; // terrain.png에서 쓸 줄(챕터 0~4)
 }
 export interface DungeonDef { id: string; name: string; lv: [number, number]; rooms: string[]; boss: string; reward: string }
 export interface ChapterDef {
@@ -20,7 +21,7 @@ const forest: Theme = {
     { spr: SP.treeG, tint: 0x8ab880, solid: true, w: 4 }, { spr: SP.pine, tint: 0x88b080, solid: true, w: 4 },
     { spr: SP.bush, tint: 0x90b888, solid: false, w: 3 }, { spr: SP.mushroom, tint: 0xd0a0ff, solid: false, w: 2 },
     { spr: SP.sprout, tint: 0xb0d0a0, solid: false, w: 3 }, { spr: SP.treeO, tint: 0xb0a070, solid: true, w: 1 },
-  ], bg: 0x23341f, ambient: 0xffffff, fog: 0x1a2a18,
+  ], bg: 0x23341f, ambient: 0xffffff, fog: 0x1a2a18, row: 0,
 };
 const castle: Theme = {
   liquid: 'moat', solid: 'wall',
@@ -29,7 +30,7 @@ const castle: Theme = {
     { spr: SP.tomb1, tint: 0xa8a0b0, solid: true, w: 2 }, { spr: SP.tomb2, tint: 0xa8a0b0, solid: true, w: 1 },
     { spr: SP.crate, tint: 0xc0a080, solid: true, w: 2 }, { spr: SP.crateDark, tint: 0xb0a8b8, solid: true, w: 1 },
     { spr: SP.gargoyle, tint: 0xa098a8, solid: true, w: 1 }, { spr: SP.anvil, tint: 0xb0b0c0, solid: true, w: 1 }, { spr: SP.shelf, tint: 0xc0a080, solid: true, w: 1 },
-  ], bg: 0x1d1a24, ambient: 0xe8e0ff, fog: 0x17141d,
+  ], bg: 0x1d1a24, ambient: 0xe8e0ff, fog: 0x17141d, row: 1,
 };
 const ice: Theme = {
   liquid: 'ice', solid: 'rock',
@@ -38,7 +39,7 @@ const ice: Theme = {
     { spr: SP.pine, tint: 0xd8f4ff, solid: true, w: 4 }, { spr: SP.rock, tint: 0xa8d0f0, solid: true, w: 2 },
     { spr: SP.gargoyle, tint: 0xb8e8ff, solid: true, w: 1 }, { spr: SP.tomb2, tint: 0xc0e0ff, solid: true, w: 1 },
     { spr: SP.rock, tint: 0xd0ecff, solid: true, w: 1 },
-  ], bg: 0x18283a, ambient: 0xe0f4ff, fog: 0x10202e,
+  ], bg: 0x18283a, ambient: 0xe0f4ff, fog: 0x10202e, row: 2,
 };
 const waste: Theme = {
   liquid: 'lava', solid: 'rock',
@@ -47,7 +48,7 @@ const waste: Theme = {
     { spr: SP.treeOS, tint: 0x7a4a30, solid: true, w: 3 }, { spr: SP.rock, tint: 0x8a5040, solid: true, w: 3 },
     { spr: SP.tomb1, tint: 0x906050, solid: true, w: 1 }, { spr: SP.rock, tint: 0xa06848, solid: true, w: 2 },
     { spr: SP.spikes, tint: 0xd07050, solid: false, w: 1 },
-  ], bg: 0x2a1610, ambient: 0xffe0d0, fog: 0x24120c,
+  ], bg: 0x2a1610, ambient: 0xffe0d0, fog: 0x24120c, row: 3,
 };
 const rift: Theme = {
   liquid: 'void', solid: 'wall',
@@ -56,13 +57,13 @@ const rift: Theme = {
     { spr: SP.gargoyleG, tint: 0xc090ff, solid: true, w: 2 }, { spr: SP.tomb1, tint: 0x9a80d0, solid: true, w: 2 },
     { spr: SP.wellGreen, tint: 0xd0a0ff, solid: true, w: 1 }, { spr: SP.rock, tint: 0x9070d0, solid: true, w: 2 },
     { spr: SP.tomb2, tint: 0x8a70c0, solid: true, w: 1 },
-  ], bg: 0x140e24, ambient: 0xe8d8ff, fog: 0x0e0a1a,
+  ], bg: 0x140e24, ambient: 0xe8d8ff, fog: 0x0e0a1a, row: 4,
 };
 const townTheme = (tint: number, bg: number): Theme => ({
   liquid: 'water', solid: 'trees',
   groundSheet: 'town', ground: [0, 0, 0, 1, 2], groundTint: tint, wallSheet: 'town', wallFrame: 16, wallTint: tint,
   props: [{ spr: SP.treeG, tint, solid: true, w: 3 }, { spr: SP.bush, tint, solid: false, w: 2 }, { spr: SP.treeO, tint, solid: true, w: 1 }],
-  bg, ambient: 0xffffff, fog: bg,
+  bg, ambient: 0xffffff, fog: bg, row: 0,
 });
 
 export const CHAPTERS: ChapterDef[] = [

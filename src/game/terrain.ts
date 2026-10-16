@@ -4,8 +4,25 @@ import type { World } from '../scenes/World';
 import type { Actor } from './combat';
 import { Theme } from '../data/world';
 import { SP } from '../data/sprites';
+import { smoothNoise } from '../core/rng';
 
 export const T = 48;
+
+// 커스텀 지형 시트(assets/img/terrain.png): 32×32, 가로 9칸 × 세로 5줄(줄 = 챕터, Theme.row). 화면에서 1.5배(48px)
+// 칸: 0~2 바닥, 3 바닥 장식, 4 얕은 액체, 5 깊은 액체, 6 가로 다리, 7 세로 다리, 8 막힌 지형 윗면. 없으면 Kenney 타일로 대체
+export const TERRAIN_KEY = 'terrain', TERRAIN_SRC = 'assets/img/terrain.png', TERRAIN_PX = 32, TERRAIN_COLS = 9;
+export const TC = { floor: 0, deco: 3, liquid: 4, deep: 5, bridgeH: 6, bridgeV: 7, top: 8 } as const;
+export const hasTerrainSheet = (s: Phaser.Scene) => s.textures.exists(TERRAIN_KEY) && s.textures.get(TERRAIN_KEY).frameTotal > TERRAIN_COLS * 5;
+export const terrainFrame = (th: Theme, col: number) => th.row * TERRAIN_COLS + col;
+
+// 커스텀 지형지물 시트(assets/img/props.png): 48×64, 가로 9칸 × 세로 5줄(줄 = 챕터). 바닥 기준 62행, 화면에서 1.5배
+// 칸: 0~2 막힌 지형(나무·성벽·바위), 3~5 큰 장애물, 6~7 작은 장식(통과), 8 랜드마크. 없으면 Kenney 소품으로 대체
+export const PROPS_KEY = 'props', PROPS_SRC = 'assets/img/props.png', PROPS_W = 48, PROPS_H = 64, PROPS_COLS = 9;
+export const PC = { block: [0, 1, 2], obstacle: [3, 4, 5], decor: [6, 7], landmark: 8 } as const;
+export const hasPropsSheet = (s: Phaser.Scene) => s.textures.exists(PROPS_KEY) && s.textures.get(PROPS_KEY).frameTotal > PROPS_COLS * 5;
+export function placeCustomProp(W: Phaser.Scene, th: Theme, col: number, x: number, y: number) {
+  return W.add.image(x, y, PROPS_KEY, th.row * PROPS_COLS + col).setScale(T / TERRAIN_PX).setOrigin(0.5, (PROPS_H - 1) / PROPS_H).setDepth(y);
+}
 export const FLOOR = 0, SOLID = 1, LIQUID = 2, BRIDGE = 3, GATE = 4, PROP = 5; // PROP: 건물 등 보이지 않는 충돌 셀
 export type LiquidKind = 'water' | 'lava' | 'ice' | 'void' | 'moat';
 const LIQ: Record<LiquidKind, { base: number; deep: number; shore: number; spark: number }> = {
@@ -138,29 +155,54 @@ export class Terrain {
   liquidG: Phaser.GameObjects.Graphics | null = null;
   render(W: World, th: Theme, style: 'trees' | 'wall' | 'rock') {
     const g = W.add.graphics().setDepth(-9500); this.liquidG = g; const L = LIQ[this.liquid];
+    const custom = hasTerrainSheet(W), props = hasPropsSheet(W); const sc = T / TERRAIN_PX;
+    const tile = (px: number, py: number, col: number, depth: number) => W.add.image(px + T / 2, py + T / 2, TERRAIN_KEY, terrainFrame(th, col)).setScale(sc).setDepth(depth);
     for (let y = 0; y < this.rows; y++) for (let x = 0; x < this.cols; x++) {
       const v = this.at(x, y); const px = x * T, py = y * T;
       if (v === LIQUID || v === BRIDGE) {
         const deep = [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => { const n = this.at(x + dx, y + dy); return n === LIQUID || n === BRIDGE || n === SOLID; });
-        g.fillStyle(deep ? L.deep : L.base, 1).fillRect(px, py, T, T);
+        if (custom) {
+          tile(px, py, deep ? TC.deep : TC.liquid, -9550);
+          if (v === BRIDGE) {
+            // 다리 방향: 좌우가 액체면 위아래로 건너는 세로 다리
+            const wet = (n: number) => n === LIQUID; const vert = wet(this.at(x - 1, y)) || wet(this.at(x + 1, y));
+            const horz = wet(this.at(x, y - 1)) || wet(this.at(x, y + 1));
+            tile(px, py, vert && !horz ? TC.bridgeV : TC.bridgeH, -9400);
+            continue;
+          }
+        } else g.fillStyle(deep ? L.deep : L.base, 1).fillRect(px, py, T, T);
         // 물가 하이라이트
-        if (this.passable(x, y - 1) && this.at(x, y - 1) !== BRIDGE) { g.fillStyle(L.shore, 0.85).fillRect(px, py, T, 4); g.fillStyle(0x000000, 0.25).fillRect(px, py + 4, T, 6); }
-        if (this.passable(x - 1, y) && this.at(x - 1, y) !== BRIDGE) g.fillStyle(L.shore, 0.5).fillRect(px, py, 3, T);
-        if (this.passable(x + 1, y) && this.at(x + 1, y) !== BRIDGE) g.fillStyle(L.shore, 0.5).fillRect(px + T - 3, py, 3, T);
-        if (this.liquid === 'void' && Math.random() < 0.08) g.fillStyle(0xffffff, 0.6).fillRect(px + Math.random() * T, py + Math.random() * T, 2, 2);
+        // 커스텀 타일은 그림에 물결이 있어 윗변 그늘만 더한다
+        if (this.passable(x, y - 1) && this.at(x, y - 1) !== BRIDGE) { if (!custom) g.fillStyle(L.shore, 0.85).fillRect(px, py, T, 4); g.fillStyle(0x000000, 0.25).fillRect(px, py + (custom ? 0 : 4), T, 6); }
+        if (!custom && this.passable(x - 1, y) && this.at(x - 1, y) !== BRIDGE) g.fillStyle(L.shore, 0.5).fillRect(px, py, 3, T);
+        if (!custom && this.passable(x + 1, y) && this.at(x + 1, y) !== BRIDGE) g.fillStyle(L.shore, 0.5).fillRect(px + T - 3, py, 3, T);
+        if (!custom && this.liquid === 'void' && Math.random() < 0.08) g.fillStyle(0xffffff, 0.6).fillRect(px + Math.random() * T, py + Math.random() * T, 2, 2);
         if (v === BRIDGE) W.add.image(px + T / 2, py + T / 2, 'dun', 37).setScale(3).setTint(this.liquid === 'void' ? 0xb090e0 : 0xc89868).setDepth(-9400);
         else if (Math.random() < 0.06) { const s = W.add.image(px + Math.random() * T, py + Math.random() * T, 'fx_spark').setTint(L.spark).setScale(0.05).setBlendMode(Phaser.BlendModes.ADD).setDepth(-9300).setAlpha(0); W.tweens.add({ targets: s, alpha: 0.9, scale: 0.09, yoyo: true, repeat: -1, delay: Math.random() * 3000, duration: 900 + Math.random() * 900 }); }
       } else if (v === SOLID && this.inner(x, y)) {
+        if (custom) tile(px, py, TC.top, -9450); // 막힌 지형 윗면
+        // 같은 종류가 군락을 이루도록 저주파 노이즈로 종류를 고르고, 나무는 살짝 흩뜨려 자연스럽게
+        const clump = () => { const n = smoothNoise(x, y, 4, th.row + 7); const k = n < 0.42 ? 0 : n < 0.68 ? 1 : 2; return Math.random() < 0.12 ? PC.block[(k + 1) % 3] : PC.block[k]; };
+        const block = (col = clump(), jx = 0, jy = 0) => placeCustomProp(W, th, col, px + T / 2 + jx, py + T + jy);
         if (style === 'trees') {
-          const f = [SP.treeG.frame, SP.pine.frame, SP.tree.frame][Math.floor(Math.random() * 3)];
-          W.add.image(px + T / 2, py + T, 'town', f).setScale(3).setOrigin(0.5, 1).setTint(Phaser.Display.Color.GetColor(110 + Math.random() * 30, 150 + Math.random() * 30, 110)).setDepth(py + T);
+          if (props) block(clump(), (Math.random() - 0.5) * 12, -Math.random() * 6);
+          else {
+            const f = [SP.treeG.frame, SP.pine.frame, SP.tree.frame][Math.floor(Math.random() * 3)];
+            W.add.image(px + T / 2, py + T, 'town', f).setScale(3).setOrigin(0.5, 1).setTint(Phaser.Display.Color.GetColor(110 + Math.random() * 30, 150 + Math.random() * 30, 110)).setDepth(py + T);
+          }
         } else if (style === 'rock') {
-          W.add.image(px + T / 2, py + T / 2, th.wallSheet, th.wallFrame).setScale(3).setTint(th.wallTint).setDepth(-9450);
-          if (Math.random() < 0.6) W.add.image(px + T / 2, py + T, 'dun', SP.rock.frame).setScale(3).setOrigin(0.5, 1).setTint(th.wallTint).setDepth(py + T);
+          if (!custom) W.add.image(px + T / 2, py + T / 2, th.wallSheet, th.wallFrame).setScale(3).setTint(th.wallTint).setDepth(-9450);
+          const front = !this.blocksMove(this.at(x, y + 1)) || this.at(x, y + 1) === LIQUID; // 앞에서 보이는 가장자리는 항상 채움
+          if (props) { if (front || Math.random() < 0.6) block(clump(), (Math.random() - 0.5) * 10, -Math.random() * 4); }
+          else if (Math.random() < 0.6) { W.add.image(px + T / 2, py + T, 'dun', SP.rock.frame).setScale(3).setOrigin(0.5, 1).setTint(th.wallTint).setDepth(py + T); }
         } else {
           const face = !this.blocksMove(this.at(x, y + 1)) || this.at(x, y + 1) === LIQUID;
-          if (face) W.add.image(px + T / 2, py + T, th.wallSheet, th.wallFrame).setScale(3).setOrigin(0.5, 1).setTint(th.wallTint).setDepth(py + T);
-          else { g.fillStyle(Phaser.Display.Color.ValueToColor(th.wallTint).darken(55).color, 1).fillRect(px, py, T, T); }
+          // 성벽: 기본 벽 사이로 5칸마다 장식 벽, 가끔 부서진 벽
+          // 세로로 이어진 벽도 옆이 트여 있으면 벽을 세워 얇은 검은 줄로 보이지 않게
+          const side = !this.blocksMove(this.at(x - 1, y)) || !this.blocksMove(this.at(x + 1, y));
+          if ((face || side) && props) block(x % 5 === 2 || (!face && y % 4 === 1) ? PC.block[1] : Math.random() < 0.1 ? PC.block[2] : PC.block[0]);
+          else if (face) W.add.image(px + T / 2, py + T, th.wallSheet, th.wallFrame).setScale(3).setOrigin(0.5, 1).setTint(th.wallTint).setDepth(py + T);
+          else if (!custom) { g.fillStyle(Phaser.Display.Color.ValueToColor(th.wallTint).darken(55).color, 1).fillRect(px, py, T, T); }
         }
       }
     }

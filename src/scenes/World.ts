@@ -6,7 +6,8 @@ import { Boss, Minor } from '../game/boss';
 import { Actor, Combat, HitInfo } from '../game/combat';
 import { FX } from '../game/fx';
 import { buildMap, placeProp, T, Circle, Rect } from '../game/mapgen';
-import { Terrain } from '../game/terrain';
+import { Terrain, PC, hasPropsSheet, placeCustomProp } from '../game/terrain';
+import { withSeed, hashSeed } from '../core/rng';
 import { genField, genTown, genDungeon, genArena, DRoom } from '../game/layouts';
 import { Remote, PVP_HP } from '../game/remote';
 import { WShape } from '../game/shapes';
@@ -64,11 +65,14 @@ export class World extends Phaser.Scene {
     this.gBars = this.add.graphics().setDepth(150000);
     this.promptText = this.add.text(0, 0, '', { fontFamily: 'Galmuri11', fontSize: '13px', color: '#fff', backgroundColor: '#000a', padding: { x: 6, y: 3 } }).setOrigin(0.5).setDepth(210000).setVisible(false);
     this.setupInput();
-    if (this.mode === 'town') this.buildTown();
-    else if (this.mode === 'field') this.buildField();
-    else if (this.mode === 'dungeon') this.buildDungeon();
-    else if (this.mode === 'pvp') this.buildPvp();
-    else this.buildBoss();
+    // 맵은 시드 고정: 같은 장소는 들어갈 때마다 같은 지형·배치(PvP는 두 플레이어가 같은 아레나)
+    withSeed(hashSeed(`${this.mode}:${this.ch.id}:${this.d.dungeon ?? 0}:${this.d.bossId ?? ''}`), () => {
+      if (this.mode === 'town') this.buildTown();
+      else if (this.mode === 'field') this.buildField();
+      else if (this.mode === 'dungeon') this.buildDungeon();
+      else if (this.mode === 'pvp') this.buildPvp();
+      else this.buildBoss();
+    });
     const cam = this.cameras.main;
     cam.setBounds(0, 0, this.terrain.cols * T, this.terrain.rows * T);
     cam.startFollow(this.player.spr, true, 0.12, 0.12); cam.setRoundPixels(true);
@@ -254,7 +258,11 @@ export class World extends Phaser.Scene {
     const portal = this.add.image(px, py - 20, 'fx_twirl').setTint(0x9a7aff).setBlendMode(Phaser.BlendModes.ADD).setScale(0.6).setDepth(py);
     this.tweens.add({ targets: portal, angle: 360, repeat: -1, duration: 3000 });
     this.interacts.push({ x: px, y: py, r: 70, label: `${this.ch.town}(으)로 귀환`, act: () => this.travel({ mode: 'town', ch: this.ch.id }) });
-    for (const lm of F.landmarks) { const p = F.t.center(lm.cx, lm.cy); placeProp(this, SP.gargoyleG, p.x, p.y, 0xffd0a0); this.obstacles.push({ x: p.x, y: p.y - 6, r: 18 }); }
+    for (const lm of F.landmarks) {
+      const p = F.t.center(lm.cx, lm.cy);
+      if (hasPropsSheet(this)) { placeCustomProp(this, this.ch.theme, PC.landmark, p.x, p.y + T / 2 - 4); this.obstacles.push({ x: p.x, y: p.y + T / 2 - 10, r: 22 }); }
+      else { placeProp(this, SP.gargoyleG, p.x, p.y, 0xffd0a0); this.obstacles.push({ x: p.x, y: p.y - 6, r: 18 }); }
+    }
     for (let i = 0; i < 7; i++) this.spawnGroup(true);
     this.setupObjectives();
     this.waveT = 6;
