@@ -1,7 +1,7 @@
 // 일반 몬스터 AI: 탐지 330px / 이탈 530px / 동시 공격 3마리 / 예고 최소 400ms (기획서 7.3)
 import Phaser from 'phaser';
 import { Actor, HitInfo } from './combat';
-import { MonsterDef, monsterStats } from '../data/monsters';
+import { MonsterDef, monsterStats, MON_SHEET, MON_SCALE, MON_CELL } from '../data/monsters';
 import { sfx } from '../audio/audio';
 import { WShape } from './shapes';
 import type { World } from '../scenes/World';
@@ -18,8 +18,13 @@ export class Enemy extends Actor {
     this.x = this.homeX = x; this.y = this.homeY = y; this.level = L; this.isElite = elite; this.name = (elite ? '정예 ' : '') + d.name;
     const s = monsterStats(d, L, elite); this.hp = this.maxHp = s.hp; this.atk = s.atk; this.def = s.def; this.poise = this.maxPoise = s.poise;
     this.speed = d.speed * (elite ? 1.05 : 1);
-    const sheet = d.spr.sheet; const sc = 3 * d.scale * (elite ? 1.3 : 1);
-    this.makeSprite(sheet, d.spr.frame, sc, d.tint); this.r = Math.max(12, 6.5 * sc);
+    const sheet = d.spr.sheet; const sc = 3 * d.scale * (elite ? 1.3 : 1); // 판정·오라 크기는 기존 16px 기준 배율을 유지
+    if (sheet === MON_SHEET) {
+      // 커스텀 시트는 크기 등급이 그림에 반영돼 있어 배율 고정, 색은 그린 그대로
+      this.makeSprite(sheet, d.spr.frame, MON_SCALE * (elite ? 1.3 : 1), 0xffffff, 63 / MON_CELL);
+      const k = (Math.max(12, 6.5 * sc) * 2.4) / 48; this.shadow.setScale(k * 0.9, k * 0.7);
+    } else this.makeSprite(sheet, d.spr.frame, sc, d.tint);
+    this.r = Math.max(12, 6.5 * sc);
     if (elite) {
       this.aura = W.add.image(x, y, 'fx_light').setTint(0xffc040).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.45).setScale(sc * 0.18);
       this.tag = W.add.text(x, y, '★ ' + d.name, { fontFamily: 'Galmuri11', fontSize: '12px', color: '#ffd76a', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
@@ -292,7 +297,7 @@ export class Enemy extends Actor {
     else { this.spr.setScale(this.baseScale); this.offX = 0; }
     this.bob = moving ? -Math.abs(Math.sin(n / 90 + this.homeX)) * 3 : Math.sin(n / 500 + this.homeX) * 0.8;
     this.spr.setRotation(moving ? Math.sin(n / 90) * 0.08 : this.stunned ? Math.sin(n / 60) * 0.12 : 0);
-    if (this.d.spr.sheet === 'dun') this.spr.setFlipX(Math.cos(this.facing) < 0);
+    if (this.d.spr.sheet === 'dun' || this.d.spr.sheet === MON_SHEET) this.spr.setFlipX(Math.cos(this.facing) < 0);
     if (this.aura) this.aura.setPosition(this.x, this.y - this.r).setDepth(this.y - 2).setAlpha(0.35 + 0.15 * Math.sin(n / 200));
     if (this.tag) this.tag.setPosition(this.x, this.y - this.r * 3.6).setDepth(this.y + 1);
   }

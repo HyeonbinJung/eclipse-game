@@ -1,7 +1,7 @@
 // 보스 AI 상태 머신 (기획서 8.3) + 기술 선택 가중치/공정성 (8.4)
 import Phaser from 'phaser';
 import { Actor, HitInfo } from './combat';
-import { BossDef, PatternDef } from '../data/bosses';
+import { BossDef, BossLook, PatternDef, bossLook } from '../data/bosses';
 import { WShape } from './shapes';
 import { sfx } from '../audio/audio';
 import { MON } from '../data/monsters';
@@ -32,13 +32,24 @@ export class Boss extends Actor {
   q: { t: number; fn: () => void }[] = []; history: { id: string; parry: boolean }[] = []; uses: Record<string, number> = {};
   cur: PatternDef | null = null; curHit = false; hitStreak = 0; invuln = 0; guardCharges = 0; used = new Set<string>();
   minors: Minor[] = []; poiseBoostUntil = 0; aura!: Phaser.GameObjects.Image; pendingDeath = false; speed: number;
-  startedAt = 0;
+  startedAt = 0; look!: BossLook;
   constructor(W: World, public B: BossDef, x: number, y: number) {
     super(W); this.isBoss = true; this.x = x; this.y = y; this.name = B.name; this.level = B.lv;
     this.hp = this.maxHp = B.hp; this.atk = B.atk; this.def = B.def; this.poise = this.maxPoise = B.poise; this.speed = B.speed;
     this.aura = W.add.image(x, y, 'fx_light').setTint(B.tint).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.35).setScale(B.scale * 0.25);
-    this.makeSprite(B.spr.sheet, B.spr.frame, B.scale, B.tint); this.r = 5.5 * B.scale;
+    const L = this.look = bossLook(W, B);
+    this.makeSprite(L.tex, L.frame, L.scale, L.tint, L.originY); this.r = 5.5 * B.scale; // 판정은 기존 배율 기준 유지
+    if (L.custom) this.fitShadow(this);
     this.stateEnd = W.now + 1000; this.startedAt = W.now;
+  }
+  // 커스텀 시트는 칸(96px)이 커서 기본 그림자 계산이 과하게 커진다 → 판정 반경 기준으로 맞춤
+  fitShadow(a: Actor, mul = 1) { const k = (this.r * 2.2 * mul) / 48; a.shadow.setScale(k * 0.9, k * 0.7); }
+  // 분신: 본체와 같은 그림
+  clone(x: number, y: number, mul: number) {
+    const L = this.look;
+    const m = new Minor(this.W, x, y, L.tex, L.frame, L.scale * mul, L.tint, 1, '분신');
+    if (L.custom) { m.spr.setOrigin(0.5, L.originY); this.fitShadow(m, mul); }
+    return m;
   }
   get P() { return this.W.player; }
   angTo() { return Math.atan2(this.P.y - this.y, this.P.x - this.x); }
@@ -313,7 +324,7 @@ export class Boss extends Actor {
         this.W.fx.smoke(this.x, this.y, this.B.tint, 4); this.W.moveActorTo(this, real.x, real.y);
         const clones: Minor[] = [];
         for (const q of pos) {
-          if (q.fake) { const m = new Minor(this.W, q.x, q.y, this.B.spr.sheet, this.B.spr.frame, this.B.scale, this.B.tint, 1, '분신'); m.spr.setAlpha(0.85); clones.push(m); this.minors.push(m); this.W.enemies.push(m as any); }
+          if (q.fake) { const m = this.clone(q.x, q.y, 1); m.spr.setAlpha(0.85); clones.push(m); this.minors.push(m); this.W.enemies.push(m as any); }
           const aa = Math.atan2(P.y - q.y, P.x - q.x); const sh: WShape = { k: 'rect', x: q.x, y: q.y - 8, a: aa, len: 460, w: 56 };
           // 가짜 분신은 붉은 공격 예고 없음
           this.tele(sh, this.T(p, p.tele as number), false, () => { if (!q.fake) { this.fsm = 'ATTACK'; this.hit(sh, p, mult()); } this.W.fx.sprite('fx_trace', q.x + Math.cos(aa) * 230, q.y + Math.sin(aa) * 230, { tint: q.fake ? 0x8888aa : col, rot: aa, scale: 3, dur: 260 }); }, q.fake);
@@ -359,7 +370,7 @@ export class Boss extends Actor {
         for (let i = 1; i <= k; i++) { const ang = base + (i / (k + 1)) * Math.PI * 2; pts.push(this.W.clampToArena(P.x + Math.cos(ang) * 270, P.y + Math.sin(ang) * 270)); }
         const clones: Minor[] = [];
         pts.forEach((q, i) => {
-          if (i > 0) { const m = new Minor(this.W, q.x, q.y, this.B.spr.sheet, this.B.spr.frame, this.B.scale * 0.85, this.B.tint, 1, '분신'); m.spr.setAlpha(0.7); clones.push(m); this.minors.push(m); this.W.enemies.push(m as any); }
+          if (i > 0) { const m = this.clone(q.x, q.y, 0.85); m.spr.setAlpha(0.7); clones.push(m); this.minors.push(m); this.W.enemies.push(m as any); }
           const aa = Math.atan2(P.y - q.y, P.x - q.x); const sh: WShape = { k: 'rect', x: q.x, y: q.y - 8, a: aa, len: p.len, w: p.w };
           this.tele(sh, ms, false, () => { this.fsm = 'ATTACK'; this.hit(sh, p, mult()); this.W.fx.sprite('fx_trace', q.x + Math.cos(aa) * p.len / 2, q.y + Math.sin(aa) * p.len / 2, { tint: col, rot: aa, scale: p.len / 120, dur: 260 }); });
         });
@@ -457,7 +468,7 @@ export class Boss extends Actor {
     if (this.fsm === 'PHASE_CHANGE') { const k = Math.sin(n / 60) * 0.08; sx = 1 + k; sy = 1 + k; }
     if (moving) rot = Math.sin(n / 120) * 0.06;
     this.spr.setScale(this.baseScale * sx, this.baseScale * sy).setRotation(rot);
-    if (this.B.spr.sheet === 'dun') this.spr.setFlipX(Math.cos(this.facing) < 0);
+    if (this.B.spr.sheet === 'dun' || this.look.custom) this.spr.setFlipX(Math.cos(this.facing) < 0);
     this.aura.setPosition(this.x, this.y - this.r * 1.5).setDepth(this.y - 3).setAlpha((this.fsm === 'PHASE_CHANGE' ? 0.7 : 0.3) + 0.1 * Math.sin(n / 300));
     if (n < this.invuln) this.spr.setAlpha(0.6 + 0.4 * Math.sin(n / 50)); else this.spr.setAlpha(1);
   }

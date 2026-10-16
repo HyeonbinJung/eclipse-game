@@ -6,7 +6,7 @@ import {
 } from '../core/state';
 import { computeStats, Stats } from '../core/stats';
 import { CLASS_LIST, CLASSES, Move } from '../data/classes';
-import { CHAPTERS, SIDE_QUESTS, MAIN_QUESTS } from '../data/world';
+import { CHAPTERS, ChapterDef, SIDE_QUESTS, MAIN_QUESTS } from '../data/world';
 import { BOSS, BOSSES } from '../data/bosses';
 import { Item, RAR, SLOTS, Slot, fmtAffix, itemMain, slotIcon, UNIQUES, RELIC, ENHANCE, rarityIndex } from '../data/items';
 import { Spr } from '../data/sprites';
@@ -237,17 +237,51 @@ function renderTraits() {
 }
 
 // ---------- 이동 ----------
+const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
+const ROOM_NAME: Record<string, string> = { s: '시작', n: '전투', e: '정예', p: '퍼즐', t: '함정', c: '체크포인트', b: '보스' };
+// 던전 입장 조건: 챕터 해금 → (최종 던전은 중간보스 격파) → 레벨
+function dungeonLock(c: ChapterDef, i: number): string {
+  const d = c.dungeons[i];
+  if (c.id > S.unlockedChapter) return `챕터 ${ROMAN[c.id - 2]} 최종보스 격파 필요`;
+  if (i === 1 && !((S.clearedBosses[c.mid] || 0) > 0)) return `${BOSS[c.mid].name} 격파 필요`;
+  const need = i === 0 ? d.lv[0] : d.lv[1];
+  return S.level >= need ? '' : `Lv${need} 필요`;
+}
+function dungeonDetail(c: ChapterDef, i: number) {
+  const d = c.dungeons[i], b = BOSS[d.boss], lock = dungeonLock(c, i), clears = S.clearedBosses[d.boss] || 0;
+  const mid = Math.ceil(d.rooms.length / 2);
+  const course = ['s', ...d.rooms.slice(0, mid), 'c', ...d.rooms.slice(mid), 'b'].map((r) => `<span class="droom r-${r}">${ROOM_NAME[r]}</span>`).join('<span class="dim">›</span>');
+  const known = c.id <= S.unlockedChapter; // 해금 전 지역은 보스 패턴을 숨김
+  return `<div class="ddet">
+    <div class="dim small">챕터 ${ROMAN[c.id - 1]} · ${c.name}</div>
+    <div class="dtitle">${d.name}</div>
+    <div class="dgrid"><span class="dim">권장 레벨</span><b>Lv${d.lv[0]}~${d.lv[1]}</b><span class="dim">위험 요소</span><b>${c.hazard}</b>
+      <span class="dim">보상</span><b>${d.reward}</b><span class="dim">클리어</span><b>${clears ? `${clears}회` : '없음'}</b></div>
+    <h3>방 구성 <span class="dim small">방 ${d.rooms.length}개 + 체크포인트</span></h3><div class="dcourse">${course}</div>
+    <h3>${b.role === 'final' ? '최종보스' : '중간보스'} · ${b.name} <span class="dim small">Lv${b.lv}</span></h3>
+    <div class="dim small">${b.intro}</div>
+    ${known ? `<div class="dpat">${b.patterns.map((p) => `<span>${p.name}</span>`).join('')}</div>` : '<div class="dim small">아직 알려지지 않은 지역 — 패턴 정보 비공개</div>'}
+    <button class="primary big" data-a="go:dungeon:${c.id}:${i}" ${lock ? 'disabled' : ''}>${lock ? '🔒 ' + lock : '입장'}</button>
+  </div>`;
+}
 function renderTravel() {
   const ch = CHAPTERS[S.chapter - 1];
-  const [d1, d2] = ch.dungeons;
-  const midDone = (S.clearedBosses[ch.mid] || 0) > 0;
-  const d1ok = S.level >= d1.lv[0]; const d2ok = midDone && S.level >= d2.lv[1];
+  // 선택: 저장된 선택 → 현재 챕터에서 입장 가능하고 미클리어인 던전 → 현재 챕터 첫 던전
+  if (!currentOpts.dsel) {
+    const i = ch.dungeons.findIndex((d, k) => !dungeonLock(ch, k) && !(S.clearedBosses[d.boss] || 0));
+    currentOpts.dsel = `${ch.id}:${Math.max(0, i)}`;
+  }
+  const [sc, si] = String(currentOpts.dsel).split(':').map(Number);
+  const list = CHAPTERS.map((c) => `<div class="dch ${c.id === ch.id ? 'cur' : ''}"><div class="dchn">챕터 ${ROMAN[c.id - 1]} · ${c.name}${c.id === ch.id ? ' <span class="gold small">현재</span>' : ''}</div>${c.dungeons.map((d, i) => {
+    const lock = dungeonLock(c, i), done = (S.clearedBosses[d.boss] || 0) > 0;
+    const st = done ? '<span class="dok">✓ 클리어</span>' : lock ? `<span class="dim">🔒 ${lock}</span>` : '<span class="gold">입장 가능</span>';
+    return `<button class="dbtn ${c.id === sc && i === si ? 'on' : ''} ${lock ? 'locked' : ''}" data-a="dsel:${c.id}:${i}"><span>${d.name} <span class="dim small">Lv${d.lv[0]}~${d.lv[1]}</span></span><span class="small">${st}</span></button>`;
+  }).join('')}</div>`).join('');
   const towns = CHAPTERS.filter((c) => c.id <= S.unlockedChapter && c.id !== ch.id).map((c) => `<button data-a="go:town:${c.id}">${c.town} (${c.name})</button>`).join('');
   const cleared = BOSSES.filter((b) => (S.clearedBosses[b.id] || 0) > 0).map((b) => `<button data-a="go:boss:${b.ch}:${b.id}">${b.name} <span class="dim">Lv${b.lv} · 오늘 ${bossDailyCount(b.id)}/3</span></button>`).join('');
   return `<h2>여행의 문<button class="x" data-a="close">✕</button></h2>
-  <div class="travel"><button class="primary" data-a="go:field:${ch.id}">필드: ${ch.field} <span class="dim">Lv${ch.range[0]}~${ch.range[1]}</span></button>
-  <button data-a="go:dungeon:${ch.id}:0" ${d1ok ? '' : 'disabled'}>던전: ${d1.name} <span class="dim">Lv${d1.lv[0]}~${d1.lv[1]} · 중간보스 ${BOSS[d1.boss].name}${d1ok ? '' : ` · Lv${d1.lv[0]} 필요`}</span></button>
-  <button data-a="go:dungeon:${ch.id}:1" ${d2ok ? '' : 'disabled'}>던전: ${d2.name} <span class="dim">최종보스 ${BOSS[d2.boss].name}${d2ok ? '' : midDone ? ` · Lv${d2.lv[1]} 필요` : ' · 중간보스 격파 필요'}</span></button></div>
+  <div class="travel"><button class="primary" data-a="go:field:${ch.id}">필드: ${ch.field} <span class="dim">Lv${ch.range[0]}~${ch.range[1]}</span></button></div>
+  <h3>던전</h3><div class="dsel"><div class="dlist">${list}</div>${dungeonDetail(CHAPTERS[sc - 1], si)}</div>
   ${towns ? `<h3>다른 마을</h3><div class="travel">${towns}</div>` : ''}
   ${cleared ? `<h3>보스 재도전 <span class="dim small">하루 3회 보상, 이후 30%</span></h3><div class="travel">${cleared}</div>` : ''}`;
 }
@@ -312,6 +346,7 @@ function clickAction(a: string, _el: HTMLElement) {
     case 'leave': UI.close(true); W?.travel({ mode: 'town', ch: S.chapter }); break;
     case 'toTitle': persist(); if (W?.mode === 'pvp') pvp.leave(); leaveToTitle(); UI.close(true); game.scene.stop('World'); game.scene.stop('Hud'); music.stop(); game.scene.start('Title'); break;
     case 'sel': currentOpts.sel = p1; render(); break;
+    case 'dsel': currentOpts.dsel = `${p1}:${p2}`; render(); break;
     case 'ssel': currentOpts.sel = p1; render(); break;
     case 'sort': currentOpts.sort = p1; render(); break;
     case 'equip': case 'equipTo': { const it = S.inventoryItems.find((i) => i.uuid === p1)!; const err = equipItem(it, p2 as Slot | undefined); if (err) UI.toast(err, '#ff9a9a'); else sfx('confirm', 0.5); render(); break; }

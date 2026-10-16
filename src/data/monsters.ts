@@ -54,7 +54,17 @@ export const MONSTERS: MonsterDef[] = [
   M('rift_giant', '균열 거병', 5, 49, 4377, 394, 70, 'brute', '원형 분쇄/장판', SP.cyclops, 0x9a60f0, 1.7, 75),
 ];
 
+// 커스텀 몬스터 시트(assets/img/monsters.png)의 칸 순서. 64×64, 바닥 기준 62행(마지막 행 여백)
+export const MON_SHEET = 'mon', MON_SRC = 'assets/img/monsters.png', MON_CELL = 64, MON_SCALE = 1.5;
+const MON_CELLS = [
+  'shroom', 'wolf', 'ghost_archer', 'root', 'ghost_thief', 'giant', 'rusty', 'wall_archer', 'hound', 'curse_mage',
+  'phantom', 'guard', 'frostbug', 'snow_spirit', 'ice_knight', 'panther', 'frost_mage', 'ice_golem', 'ash_dead', 'locust',
+  'lava_hound', 'thrower', 'beetle', 'colossus', 'shard', 'stalker', 'priest', 'lancer', 'void_mage', 'rift_giant',
+];
+
 for (const m of MONSTERS) {
+  const cell = MON_CELLS.indexOf(m.id);
+  if (cell >= 0) m.spr = { sheet: 'mon', frame: cell };
   m.mHp = m.hp / enemyHpBase(m.lv);
   m.mAtk = m.atk / enemyAtkBase(m.lv);
   m.mDef = m.def / enemyDefBase(m.lv);

@@ -1,5 +1,6 @@
 // Kenney Tiny Dungeon / Tiny Town (CC0) 패킹 시트의 프레임 인덱스. 16×16, 가로 12칸.
-export type Sheet = 'dun' | 'town';
+// 'mon': 커스텀 몬스터 시트(assets/img/monsters.png). 64×64, 가로 10칸 × 세로 3줄.
+export type Sheet = 'dun' | 'town' | 'mon';
 export interface Spr { sheet: Sheet; frame: number }
 const S = (sheet: Sheet, frame: number): Spr => ({ sheet, frame });
 

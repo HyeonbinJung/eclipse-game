@@ -1,4 +1,5 @@
 // 기획서 8장 — 보스 10종 (수치는 기획서 기재값 그대로)
+import type Phaser from 'phaser';
 import { SP, Spr } from './sprites';
 
 export type Cat = 'melee' | 'ranged' | 'area' | 'special';
@@ -152,3 +153,18 @@ export const BOSSES: BossDef[] = [
   },
 ];
 export const BOSS: Record<string, BossDef> = Object.fromEntries(BOSSES.map((b) => [b.id, b]));
+
+// 커스텀 보스 시트(assets/img/bosses.png). 96×96, 가로 5칸 × 세로 2줄, 바닥 기준 94행(마지막 행 여백).
+// 시트가 없으면 기존 Kenney 스프라이트 + 틴트로 대체된다.
+export const BOSS_SHEET = 'boss', BOSS_SRC = 'assets/img/bosses.png', BOSS_CELL = 96, BOSS_SCALE = 1.5;
+const BOSS_CELLS = ['forest_predator', 'root_guardian', 'black_captain', 'fallen_king', 'frost_hunter', 'frost_queen', 'lava_predator', 'immortal_avatar', 'void_executor', 'rift_lord'];
+
+export interface BossLook { tex: string; frame: number; scale: number; tint: number; originY: number; custom: boolean }
+export function bossLook(scene: Phaser.Scene, B: BossDef): BossLook {
+  const cell = BOSS_CELLS.indexOf(B.id);
+  // frameTotal에는 __BASE 프레임이 포함된다
+  if (cell >= 0 && scene.textures.exists(BOSS_SHEET) && scene.textures.get(BOSS_SHEET).frameTotal > BOSS_CELLS.length) {
+    return { tex: BOSS_SHEET, frame: cell, scale: BOSS_SCALE, tint: 0xffffff, originY: (BOSS_CELL - 1) / BOSS_CELL, custom: true };
+  }
+  return { tex: B.spr.sheet, frame: B.spr.frame, scale: B.scale, tint: B.tint, originY: 0.86, custom: false };
+}
